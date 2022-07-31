@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 grep = "*"
+bstr = "*"
 
 [patch.crates-io]
 grep = { path = "../ripgrep/crates/grep" }

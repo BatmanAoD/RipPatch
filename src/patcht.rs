@@ -3,7 +3,7 @@
 use std::io;
 
 use bstr::ByteVec;
-use grep_searcher::{SinkMatch, SinkContext};
+use grep::searcher::{SinkMatch, SinkContext};
 
 /// The patch styles match different possible input types accepted by the
 /// `patch` utiltiy.

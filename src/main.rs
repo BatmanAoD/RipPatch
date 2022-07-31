@@ -2,15 +2,19 @@ use std::process;
 
 mod patch;
 mod patcht;
+mod util;
 
 fn main() {
+    /*
     if let Err(err) = Args::parse().and_then(search_parallel) {
         eprintln!("{}", err);
         process::exit(2);
     }
+    */
 } 
 
 // XXX copied from rg
+/*
 fn search_parallel(args: &Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
@@ -79,12 +83,6 @@ fn search_parallel(args: &Args) -> Result<bool> {
     if args.using_default_path() && !searched.load(SeqCst) {
         eprint_nothing_searched();
     }
-    if let Some(ref locked_stats) = stats {
-        let elapsed = Instant::now().duration_since(started_at);
-        let stats = locked_stats.lock().unwrap();
-        let mut searcher = args.search_worker(args.stdout())?;
-        // We don't care if we couldn't print this successfully.
-        let _ = searcher.print_stats(elapsed, &stats);
-    }
     Ok(matched.load(SeqCst))
 }
+*/

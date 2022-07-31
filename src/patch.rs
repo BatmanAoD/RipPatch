@@ -4,10 +4,12 @@ use std::path::Path;
 use std::time::Instant;
 
 use grep::matcher::{Matcher, Match};
-use grep::printer::util::{find_iter_at_in_context, Replacer};
+use grep::printer::Replacer;
+// util::find_iter_at_in_context};
 use grep::searcher::{Searcher, Sink, SinkContextKind, SinkMatch, SinkContext, SinkFinish};
 
 use crate::patcht::{PatchHunk, PatchStyle};
+use crate::util::find_iter_at_in_context;
 
 const ORIG_PREFIX: &[u8] = b"--- ";
 const MOD_PREFIX: &[u8] = b"+++ ";
@@ -74,6 +76,7 @@ pub struct Patch<W> {
     matches: Vec<Match>,
 }
 
+/* XXX see if we need these
 impl<W> Patch<W> {
     /// Returns true if and only if this printer has written at least one byte
     /// to the underlying writer during any of the previous searches.
@@ -92,6 +95,7 @@ impl<W> Patch<W> {
         self.wtr.into_inner()
     }
 }
+*/
 
 /// An implementation of `Sink` associated with a matcher and an optional file
 /// path for the patch printer.
@@ -291,7 +295,7 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for PatchSink<'p, 's, M, W> {
 
 
     fn begin(&mut self, _searcher: &Searcher) -> Result<bool, io::Error> {
-        self.patch.wtr.reset_count();
+        // self.patch.wtr.reset_count(); // XXX only if we need a counter-writer
         self.start_time = Instant::now();
         self.match_count = 0;
         self.after_context_remaining = 0;
