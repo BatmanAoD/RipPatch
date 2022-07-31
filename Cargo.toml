@@ -1,0 +1,10 @@
+[package]
+name = "rip_patch"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+grep = "*"
+
+[patch.crates-io]
+grep = { path = "../ripgrep/crates/grep" }
