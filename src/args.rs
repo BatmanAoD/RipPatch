@@ -3,12 +3,10 @@ use std::cmp;
 use std::env;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use clap;
 use grep::cli;

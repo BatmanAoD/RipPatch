@@ -35,11 +35,9 @@ OPTIONS:
 // ignored because they should have no effect on patch-writing behavior.
 
 const IGNORED_FOR_COMPATIBILITY_SHORT: &str = "Ignored for compatiblity with ripgrep's CLI";
-const IGNORED_FOR_COMPATIBILITY_LONG: &str = long!(
-        "\
+const IGNORED_FOR_COMPATIBILITY_LONG: &str = "\
 Ignored for compatibility with ripgrep's CLI.
-"
-    );
+ ";
 
 /// Build a clap application parameterized by usage strings.
 pub fn app() -> App<'static, 'static> {
@@ -472,6 +470,13 @@ pub fn all_args_and_flags() -> Vec<RGArg> {
     flag_binary(&mut args);
     flag_block_buffered(&mut args);
     flag_case_sensitive(&mut args);
+    flag_color(&mut args);
+    flag_colors(&mut args);
+    flag_column(&mut args);
+    flag_context(&mut args);
+    flag_context_separator(&mut args);
+    flag_count(&mut args);
+    flag_count_matches(&mut args);
     flag_crlf(&mut args);
     flag_debug(&mut args);
     flag_dfa_size_limit(&mut args);
