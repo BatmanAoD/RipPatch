@@ -63,11 +63,6 @@ pub fn set_ignore_messages(yes: bool) {
     IGNORE_MESSAGES.store(yes, Ordering::SeqCst)
 }
 
-/// Returns true if and only if ripgrep came across a non-fatal error.
-pub fn errored() -> bool {
-    ERRORED.load(Ordering::SeqCst)
-}
-
 /// Indicate that ripgrep has come across a non-fatal error.
 pub fn set_errored() {
     ERRORED.store(true, Ordering::SeqCst);

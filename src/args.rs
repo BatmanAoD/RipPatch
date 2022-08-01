@@ -1,5 +1,7 @@
+use core::fmt;
 use std::cmp;
 use std::env;
+use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Write};
@@ -68,7 +70,18 @@ pub enum Command {
     PCRE2Version,
 }
 
-static ErrReplacementTextNotSet: io::Error = io::Error::new(io::ErrorKind::Other, "replacement text not set");
+#[derive(Debug, Copy, Clone)]
+struct ErrReplacementTextNotSet{}
+
+impl fmt::Display for ErrReplacementTextNotSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "replacement text not set")
+    }
+}
+
+impl Error for ErrReplacementTextNotSet {}
+
+static ERR_NO_REPLACEMENT: ErrReplacementTextNotSet = ErrReplacementTextNotSet{};
 
 impl Command {
     /// Returns true if and only if this command requires executing a search.
@@ -716,19 +729,6 @@ impl ArgMatches {
         paths.map(|p| Path::new(p).to_path_buf()).collect()
     }
 
-    /// The maximum number of columns allowed on each line.
-    ///
-    /// If `0` is provided, then this returns `None`.
-    fn max_columns(&self) -> Result<Option<u64>> {
-        Ok(self.usize_of_nonzero("max-columns")?.map(|n| n as u64))
-    }
-
-    /// Returns true if and only if a preview should be shown for lines that
-    /// exceed the maximum column limit.
-    fn max_columns_preview(&self) -> bool {
-        self.is_present("max-columns-preview")
-    }
-
     /// Parses the max-filesize argument option into a byte count.
     fn max_file_size(&self) -> Result<Option<u64>> {
         self.parse_human_readable_size("max-filesize")
@@ -1001,8 +1001,11 @@ impl ArgMatches {
 
     /// Returns the replacement string as UTF-8 bytes; it must exist.
     fn replacement(&self) -> Result<Vec<u8>> {
-        self.value_of_lossy("replace").map(|s| s.into_bytes())
-            .ok_or(ErrReplacementTextNotSet.into())
+        let r = self.value_of_lossy("pos_replace")
+            .or(self.value_of_lossy("replace"))
+            .map(|s| s.into_bytes())
+            .ok_or(ERR_NO_REPLACEMENT)?;
+        Ok(r)
     }
 
     /// Return the number of threads that should be used for parallelism.

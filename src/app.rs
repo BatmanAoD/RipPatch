@@ -467,8 +467,6 @@ pub fn all_args_and_flags() -> Vec<RGArg> {
     flag_ignore_file_case_insensitive(&mut args);
     flag_line_buffered(&mut args);
     flag_line_regexp(&mut args);
-    flag_max_columns(&mut args);
-    flag_max_columns_preview(&mut args);
     flag_max_depth(&mut args);
     flag_max_filesize(&mut args);
     flag_mmap(&mut args);
@@ -560,7 +558,7 @@ line. To replace the entire line, you should match the entire line.
 This flag can be used with the -o/--only-matching flag.
 "
     );
-    let arg = RGArg::positional("replace", "REPLACEMENT_TEXT")
+    let arg = RGArg::positional("pos_replace", "REPLACEMENT_TEXT")
         .help(SHORT)
         .long_help(LONG)
         .required_unless(&[
@@ -1378,57 +1376,6 @@ This overrides the --word-regexp flag.
         .help(SHORT)
         .long_help(LONG)
         .overrides("word-regexp");
-    args.push(arg);
-}
-
-// XXX double check that this is handled by searcher, not printer
-fn flag_max_columns(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Don't match lines longer than this limit.";
-    const LONG: &str = long!(
-        "\
-Behavior matches ripgrep:
-
-Don't match lines longer than this limit in bytes. Longer lines are omitted,
-and only the number of matches in that line is printed.
-
-When this flag is omitted or is set to 0, then it has no effect.
-"
-    );
-    let arg = RGArg::flag("max-columns", "NUM")
-        .short("M")
-        .help(SHORT)
-        .long_help(LONG)
-        .number();
-    args.push(arg);
-}
-
-// XXX see above
-fn flag_max_columns_preview(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Print a preview for lines exceeding the limit.";
-    const LONG: &str = long!(
-        "\
-Behavior matches ripgrep:
-
-When the '--max-columns' flag is used, ripgrep will by default completely
-replace any line that is too long with a message indicating that a matching
-line was removed. When this flag is combined with '--max-columns', a preview
-of the line (corresponding to the limit size) is shown instead, where the part
-of the line exceeding the limit is not shown.
-
-If the '--max-columns' flag is not set, then this has no effect.
-
-This flag can be disabled with '--no-max-columns-preview'.
-"
-    );
-    let arg = RGArg::switch("max-columns-preview")
-        .help(SHORT)
-        .long_help(LONG)
-        .overrides("no-max-columns-preview");
-    args.push(arg);
-
-    let arg = RGArg::switch("no-max-columns-preview")
-        .hidden()
-        .overrides("max-columns-preview");
     args.push(arg);
 }
 

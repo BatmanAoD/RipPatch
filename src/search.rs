@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::Duration;
 
 use grep::cli;
 use grep::matcher::Matcher;
@@ -21,7 +20,6 @@ use crate::subject::Subject;
 /// at a very high level.
 #[derive(Clone, Debug)]
 struct Config {
-    json_stats: bool,
     preprocessor: Option<PathBuf>,
     preprocessor_globs: Override,
     search_zip: bool,
@@ -32,7 +30,6 @@ struct Config {
 impl Default for Config {
     fn default() -> Config {
         Config {
-            json_stats: false,
             preprocessor: None,
             preprocessor_globs: Override::empty(),
             search_zip: false,
@@ -365,9 +362,4 @@ fn search_reader<M: Matcher, R: io::Read, W: WriteColor>(
     Ok(SearchResult {
         has_match: sink.has_match(),
     })
-}
-
-/// Return the given duration as fractional seconds.
-fn fractional_seconds(duration: Duration) -> f64 {
-    (duration.as_secs() as f64) + (duration.subsec_nanos() as f64 * 1e-9)
 }

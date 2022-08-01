@@ -18,4 +18,4 @@ default-features = false
 features = ["suggestions"]
 
 [patch.crates-io]
-grep = { path = "../ripgrep/crates/grep" }
+grep = { git = "https://github.com/BatmanAoD/ripgrep", branch = "expose-utils" }

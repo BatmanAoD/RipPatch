@@ -1,17 +1,18 @@
 use std::error;
 use std::io;
 use std::process;
-use std::time::Instant;
 
 use ignore::WalkState;
 
 use args::Args;
 
+#[macro_use]
+mod messages;
+
 mod app;
 mod args;
 mod config;
 mod logger;
-mod messages;
 mod patch;
 mod patcht;
 mod search;
@@ -31,7 +32,6 @@ fn search_parallel(args: Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
 
-    let started_at = Instant::now();
     let subject_builder = args.subject_builder();
     let bufwtr = args.buffer_writer();
     let matched = AtomicBool::new(false);
