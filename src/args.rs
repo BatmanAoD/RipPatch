@@ -652,14 +652,7 @@ impl ArgMatches {
     ///
     /// RipPatch *always* uses a context of 3.
     fn contexts(&self) -> Result<(usize, usize)> {
-        let after = self.usize_of("after-context")?.unwrap_or(0);
-        let before = self.usize_of("before-context")?.unwrap_or(0);
-        let both = self.usize_of("context")?.unwrap_or(0);
-        Ok(if both > 0 {
-            (both, both)
-        } else {
-            (before, after)
-        })
+        return Ok((3, 3));
     }
 
     /// Parse the dfa-size-limit argument option into a byte count.
