@@ -1,16 +1,16 @@
 use std::process;
 
+mod app;
+mod args;
 mod patch;
 mod patcht;
 mod util;
 
 fn main() {
-    /*
     if let Err(err) = Args::parse().and_then(search_parallel) {
         eprintln!("{}", err);
         process::exit(2);
     }
-    */
 } 
 
 // XXX copied from rg

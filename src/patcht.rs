@@ -64,6 +64,7 @@ impl PatchHunk {
         // XXX validate `unwrap` here - when would a match not have a line
         // number? (Presumably this case would not be supported by this printer)
         let _ = self.starting_line_number.get_or_insert_with(|| mat.line_number().unwrap());
+        // XXX make sure `mat.bytes()` includes full matching line even with `--only-match`
         let orig = mat.bytes().to_vec();
         let mut modified = replacement.to_vec();
         // Unlike the match, the replacement does not include the line ending.
