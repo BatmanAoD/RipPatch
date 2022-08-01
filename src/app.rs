@@ -31,6 +31,16 @@ ARGS:
 OPTIONS:
 {unified}";
 
+// For maximum command-line compatibility with ripgrep, several flags are
+// ignored because they should have no effect on patch-writing behavior.
+
+const IGNORED_FOR_COMPATIBILITY_SHORT: &str = "Ignored for compatiblity with ripgrep's CLI";
+const IGNORED_FOR_COMPATIBILITY_LONG: &str = long!(
+        "\
+Ignored for compatibility with ripgrep's CLI.
+"
+    );
+
 /// Build a clap application parameterized by usage strings.
 pub fn app() -> App<'static, 'static> {
     let mut app = App::new("RipPatch")
@@ -457,6 +467,8 @@ pub fn all_args_and_flags() -> Vec<RGArg> {
     // `flag_encoding` defines `--encoding` and `--no-encoding`. Most `--no`
     // flags are hidden and merely mentioned in the docs of the corresponding
     // "positive" flag.
+    flag_before_context(&mut args);
+    flag_after_context(&mut args);
     flag_binary(&mut args);
     flag_block_buffered(&mut args);
     flag_case_sensitive(&mut args);
@@ -502,8 +514,6 @@ pub fn all_args_and_flags() -> Vec<RGArg> {
     flag_regexp(&mut args);
     flag_search_zip(&mut args);
     flag_smart_case(&mut args);
-    flag_sort(&mut args);
-    flag_sortr(&mut args);
     flag_text(&mut args);
     flag_threads(&mut args);
     flag_type(&mut args);
@@ -590,16 +600,9 @@ paths specified on the command line override glob and ignore rules. \
     args.push(arg);
 }
 
-/* XXX ignore for compatibility
 fn flag_after_context(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Show NUM lines after each match.";
-    const LONG: &str = long!(
-        "\
-Show NUM lines after each match.
-
-This overrides the --context and --passthru flags.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::flag("after-context", "NUM")
         .short("A")
         .help(SHORT)
@@ -611,14 +614,8 @@ This overrides the --context and --passthru flags.
 }
 
 fn flag_before_context(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Show NUM lines before each match.";
-    const LONG: &str = long!(
-        "\
-Show NUM lines before each match.
-
-This overrides the --context and --passthru flags.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::flag("before-context", "NUM")
         .short("B")
         .help(SHORT)
@@ -628,7 +625,6 @@ This overrides the --context and --passthru flags.
         .overrides("context");
     args.push(arg);
 }
-*/
 
 fn flag_binary(args: &mut Vec<RGArg>) {
     const SHORT: &str = "Search binary files.";
@@ -739,30 +735,9 @@ This overrides the -i/--ignore-case and -S/--smart-case flags.
     args.push(arg);
 }
 
-/* XXX ignore for compatibility
 fn flag_color(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Controls when to use color.";
-    const LONG: &str = long!(
-        "\
-This flag controls when to use colors. The default setting is 'auto', which
-means ripgrep will try to guess when to use colors. For example, if ripgrep is
-printing to a terminal, then it will use colors, but if it is redirected to a
-file or a pipe, then it will suppress color output. ripgrep will suppress color
-output in some other circumstances as well. For example, if the TERM
-environment variable is not set or set to 'dumb', then ripgrep will not use
-colors.
-
-The possible values for this flag are:
-
-    never    Colors will never be used.
-    auto     The default. ripgrep tries to be smart.
-    always   Colors will always be used regardless of where output is sent.
-    ansi     Like 'always', but emits ANSI escapes (even in a Windows console).
-
-When the --vimgrep flag is given to ripgrep, then the default value for the
---color flag changes to 'never'.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::flag("color", "WHEN")
         .help(SHORT)
         .long_help(LONG)
@@ -772,43 +747,8 @@ When the --vimgrep flag is given to ripgrep, then the default value for the
 }
 
 fn flag_colors(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Configure color settings and styles.";
-    const LONG: &str = long!(
-        "\
-This flag specifies color settings for use in the output. This flag may be
-provided multiple times. Settings are applied iteratively. Colors are limited
-to one of eight choices: red, blue, green, cyan, magenta, yellow, white and
-black. Styles are limited to nobold, bold, nointense, intense, nounderline
-or underline.
-
-The format of the flag is '{type}:{attribute}:{value}'. '{type}' should be
-one of path, line, column or match. '{attribute}' can be fg, bg or style.
-'{value}' is either a color (for fg and bg) or a text style. A special format,
-'{type}:none', will clear all color settings for '{type}'.
-
-For example, the following command will change the match color to magenta and
-the background color for line numbers to yellow:
-
-    rg --colors 'match:fg:magenta' --colors 'line:bg:yellow' foo.
-
-Extended colors can be used for '{value}' when the terminal supports ANSI color
-sequences. These are specified as either 'x' (256-color) or 'x,x,x' (24-bit
-truecolor) where x is a number between 0 and 255 inclusive. x may be given as
-a normal decimal number or a hexadecimal number, which is prefixed by `0x`.
-
-For example, the following command will change the match background color to
-that represented by the rgb value (0,128,255):
-
-    rg --colors 'match:bg:0,128,255'
-
-or, equivalently,
-
-    rg --colors 'match:bg:0x0,0x80,0xFF'
-
-Note that the the intense and nointense style flags will have no effect when
-used alongside these extended color codes.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::flag("colors", "COLOR_SPEC")
         .help(SHORT)
         .long_help(LONG)
@@ -817,16 +757,8 @@ used alongside these extended color codes.
 }
 
 fn flag_column(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Show column numbers.";
-    const LONG: &str = long!(
-        "\
-Show column numbers (1-based). This only shows the column numbers for the first
-match on each line. This does not try to account for Unicode. One byte is equal
-to one column. This implies --line-number.
-
-This flag can be disabled with --no-column.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::switch("column")
         .help(SHORT)
         .long_help(LONG)
@@ -838,16 +770,8 @@ This flag can be disabled with --no-column.
 }
 
 fn flag_context(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Show NUM lines before and after each match.";
-    const LONG: &str = long!(
-        "\
-Show NUM lines before and after each match. This is equivalent to providing
-both the -B/--before-context and -A/--after-context flags with the same value.
-
-This overrides both the -B/--before-context and -A/--after-context flags,
-in addition to the --passthru flag.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::flag("context", "NUM")
         .short("C")
         .help(SHORT)
@@ -860,19 +784,8 @@ in addition to the --passthru flag.
 }
 
 fn flag_context_separator(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Set the context separator string.";
-    const LONG: &str = long!(
-        "\
-The string used to separate non-contiguous context lines in the output. This
-is only used when one of the context flags is used (-A, -B or -C). Escape
-sequences like \\x7F or \\t may be used. The default value is --.
-
-When the context separator is set to an empty string, then a line break
-is still inserted. To completely disable context separators, use the
---no-context-separator flag.
-"
-    );
-
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::flag("context-separator", "SEPARATOR")
         .help(SHORT)
         .long_help(LONG)
@@ -886,24 +799,8 @@ is still inserted. To completely disable context separators, use the
 }
 
 fn flag_count(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Only show the count of matching lines for each file.";
-    const LONG: &str = long!(
-        "\
-This flag suppresses normal output and shows the number of lines that match
-the given patterns for each file searched. Each file containing a match has its
-path and count printed on each line. Note that this reports the number of lines
-that match and not the total number of matches, unless -U/--multiline is
-enabled. In multiline mode, --count is equivalent to --count-matches.
-
-If only one file is given to ripgrep, then only the count is printed if there
-is a match. The --with-filename flag can be used to force printing the file
-path in this case. If you need a count to be printed regardless of whether
-there is a match, then use --include-zero.
-
-This overrides the --count-matches flag. Note that when --count is combined
-with --only-matching, then ripgrep behaves as if --count-matches was given.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::switch("count")
         .short("c")
         .help(SHORT)
@@ -913,31 +810,14 @@ with --only-matching, then ripgrep behaves as if --count-matches was given.
 }
 
 fn flag_count_matches(args: &mut Vec<RGArg>) {
-    const SHORT: &str =
-        "Only show the count of individual matches for each file.";
-    const LONG: &str = long!(
-        "\
-This flag suppresses normal output and shows the number of individual
-matches of the given patterns for each file searched. Each file
-containing matches has its path and match count printed on each line.
-Note that this reports the total number of individual matches and not
-the number of lines that match.
-
-If only one file is given to ripgrep, then only the count is printed if there
-is a match. The --with-filename flag can be used to force printing the file
-path in this case.
-
-This overrides the --count flag. Note that when --count is combined with
---only-matching, then ripgrep behaves as if --count-matches was given.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::switch("count-matches")
         .help(SHORT)
         .long_help(LONG)
         .overrides("count");
     args.push(arg);
 }
-*/
 
 fn flag_crlf(args: &mut Vec<RGArg>) {
     const SHORT: &str = "Support CRLF line terminators (useful on Windows).";
@@ -1330,7 +1210,6 @@ This flag can be disabled with the --no-ignore-file-case-insensitive flag.
     args.push(arg);
 }
 
-// XXX is this useful for patch?
 fn flag_line_buffered(args: &mut Vec<RGArg>) {
     const SHORT: &str = "Force line buffering.";
     const LONG: &str = long!(
@@ -1469,7 +1348,6 @@ This flag overrides --mmap.
     args.push(arg);
 }
 
-// XXX make sure RipPatch respects ripgrep's config file
 fn flag_no_config(args: &mut Vec<RGArg>) {
     const SHORT: &str = "Never read configuration files.";
     const LONG: &str = long!(
@@ -1822,16 +1700,9 @@ This flag can be disabled with --no-one-file-system.
     args.push(arg);
 }
 
-// XXX figure out if there's a point to this when making a patch, and if so,
-// what the behavior should be
 fn flag_only_matching(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Print only matched parts of a line.";
-    const LONG: &str = long!(
-        "\
-Print only the matched (non-empty) parts of a matching line, with each such
-part on a separate output line.
-"
-    );
+    const SHORT: &str = IGNORED_FOR_COMPATIBILITY_SHORT;
+    const LONG: &str = IGNORED_FOR_COMPATIBILITY_LONG;
     let arg = RGArg::switch("only-matching")
         .short("o")
         .help(SHORT)
@@ -2097,77 +1968,6 @@ This overrides the -s/--case-sensitive and -i/--ignore-case flags.
         .long_help(LONG)
         .overrides("case-sensitive")
         .overrides("ignore-case");
-    args.push(arg);
-}
-
-// XXX figure out if this is useful; or ignore, since I only copied over the
-// multi-threaded version?
-fn flag_sort(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Sort results in ascending order. Implies --threads=1.";
-    const LONG: &str = long!(
-        "\
-This flag enables sorting of results in ascending order. The possible values
-for this flag are:
-
-    none      (Default) Do not sort results. Fastest. Can be multi-threaded.
-    path      Sort by file path. Always single-threaded.
-    modified  Sort by the last modified time on a file. Always single-threaded.
-    accessed  Sort by the last accessed time on a file. Always single-threaded.
-    created   Sort by the creation time on a file. Always single-threaded.
-
-If the chosen (manually or by-default) sorting criteria isn't available on your
-system (for example, creation time is not available on ext4 file systems), then
-ripgrep will attempt to detect this, print an error and exit without searching.
-
-To sort results in reverse or descending order, use the --sortr flag. Also,
-this flag overrides --sortr.
-
-Note that sorting results currently always forces ripgrep to abandon
-parallelism and run in a single thread.
-"
-    );
-    let arg = RGArg::flag("sort", "SORTBY")
-        .help(SHORT)
-        .long_help(LONG)
-        .possible_values(&["path", "modified", "accessed", "created", "none"])
-        .overrides("sortr")
-        .overrides("sort-files")
-        .overrides("no-sort-files");
-    args.push(arg);
-}
-
-// XXX same as above
-fn flag_sortr(args: &mut Vec<RGArg>) {
-    const SHORT: &str = "Sort results in descending order. Implies --threads=1.";
-    const LONG: &str = long!(
-        "\
-This flag enables sorting of results in descending order. The possible values
-for this flag are:
-
-    none      (Default) Do not sort results. Fastest. Can be multi-threaded.
-    path      Sort by file path. Always single-threaded.
-    modified  Sort by the last modified time on a file. Always single-threaded.
-    accessed  Sort by the last accessed time on a file. Always single-threaded.
-    created   Sort by the creation time on a file. Always single-threaded.
-
-If the chosen (manually or by-default) sorting criteria isn't available on your
-system (for example, creation time is not available on ext4 file systems), then
-ripgrep will attempt to detect this, print an error and exit without searching.
-
-To sort results in ascending order, use the --sort flag. Also, this flag
-overrides --sort.
-
-Note that sorting results currently always forces ripgrep to abandon
-parallelism and run in a single thread.
-"
-    );
-    let arg = RGArg::flag("sortr", "SORTBY")
-        .help(SHORT)
-        .long_help(LONG)
-        .possible_values(&["path", "modified", "accessed", "created", "none"])
-        .overrides("sort")
-        .overrides("sort-files")
-        .overrides("no-sort-files");
     args.push(arg);
 }
 
