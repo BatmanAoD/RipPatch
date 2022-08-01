@@ -29,17 +29,18 @@ use grep::searcher::{
 };
 use ignore::overrides::{Override, OverrideBuilder};
 use ignore::types::{FileTypeDef, Types, TypesBuilder};
-use ignore::{Walk, WalkBuilder, WalkParallel};
+use ignore::{WalkBuilder, WalkParallel};
 use log;
 use num_cpus;
 use regex;
-use termcolor::{BufferWriter, ColorChoice, WriteColor};
+use termcolor::{BufferWriter, ColorChoice};
 
 use crate::app;
 use crate::config;
+use crate::ignore_message;
 use crate::logger::Logger;
 use crate::messages::{set_ignore_messages, set_messages};
-use crate::path_printer::{PathPrinter, PathPrinterBuilder};
+use crate::patch::{Patch, PatchBuilder};
 use crate::search::{
     PatternMatcher, Printer, SearchWorker, SearchWorkerBuilder,
 };
@@ -70,6 +71,8 @@ pub enum Command {
     /// Print the version of PCRE2 in use.
     PCRE2Version,
 }
+
+static ErrReplacementTextNotSet: io::Error = io::Error::new(io::ErrorKind::Other, "replacement text not set");
 
 impl Command {
     /// Returns true if and only if this command requires executing a search.
@@ -189,126 +192,35 @@ impl Args {
     pub fn using_default_path(&self) -> bool {
         self.0.using_default_path
     }
-
-    /// Return the printer that should be used for formatting the output of
-    /// search results.
-    ///
-    /// The returned printer will write results to the given writer.
-    fn printer<W: WriteColor>(&self, wtr: W) -> Result<Printer<W>> {
-        match self.matches().output_kind() {
-            OutputKind::Standard => {
-                let separator_search = self.command()? == Command::Search;
-                self.matches()
-                    .printer_standard(self.paths(), wtr, separator_search)
-                    .map(Printer::Standard)
-            }
-            OutputKind::Summary => self
-                .matches()
-                .printer_summary(self.paths(), wtr)
-                .map(Printer::Summary),
-            OutputKind::JSON => {
-                self.matches().printer_json(wtr).map(Printer::JSON)
-            }
-        }
-    }
 }
 
-/// High level public routines for building data structures used by ripgrep
-/// from command line arguments.
+/// High level public routines for building data structures used by RipPatch and
+/// ripgrep from command line arguments.
 impl Args {
-    /// Create a new buffer writer for multi-threaded printing with color
-    /// support.
-    pub fn buffer_writer(&self) -> Result<BufferWriter> {
-        let mut wtr = BufferWriter::stdout(self.matches().color_choice());
-        wtr.separator(self.matches().file_separator()?);
-        Ok(wtr)
-    }
-
-    /// Return the high-level command that ripgrep should run.
-    pub fn command(&self) -> Result<Command> {
-        let is_one_search = self.matches().is_one_search(self.paths());
-        let threads = self.matches().threads()?;
-        let one_thread = is_one_search || threads == 1;
-
-        Ok(if self.matches().is_present("pcre2-version") {
-            Command::PCRE2Version
-        } else if self.matches().is_present("type-list") {
-            Command::Types
-        } else if self.matches().is_present("files") {
-            if one_thread {
-                Command::Files
-            } else {
-                Command::FilesParallel
-            }
-        } else if self.matches().can_never_match(self.patterns()) {
-            Command::SearchNever
-        } else if one_thread {
-            Command::Search
-        } else {
-            Command::SearchParallel
-        })
-    }
-
-    /// Builder a path printer that can be used for printing just file paths,
-    /// with optional color support.
-    ///
-    /// The printer will print paths to the given writer.
-    pub fn path_printer<W: WriteColor>(
-        &self,
-        wtr: W,
-    ) -> Result<PathPrinter<W>> {
-        let mut builder = PathPrinterBuilder::new();
-        builder
-            .color_specs(self.matches().color_specs()?)
-            .separator(self.matches().path_separator()?)
-            .terminator(self.matches().path_terminator().unwrap_or(b'\n'));
-        Ok(builder.build(wtr))
-    }
-
-    /// Returns true if and only if ripgrep should be "quiet."
-    pub fn quiet(&self) -> bool {
-        self.matches().is_present("quiet")
-    }
-
-    /// Returns true if and only if the search should quit after finding the
-    /// first match.
-    pub fn quit_after_match(&self) -> Result<bool> {
-        Ok(self.matches().is_present("quiet") && self.stats()?.is_none())
+    /// Create a new buffer writer for multi-threaded printing.
+    pub fn buffer_writer(&self) -> BufferWriter {
+        BufferWriter::stdout(ColorChoice::Never)
     }
 
     /// Build a worker for executing searches.
     ///
     /// Search results are written to the given writer.
-    pub fn search_worker<W: WriteColor>(
+    pub fn search_worker<W: io::Write>(
         &self,
         wtr: W,
     ) -> Result<SearchWorker<W>> {
         let matches = self.matches();
         let matcher = self.matcher().clone();
-        let printer = self.printer(wtr)?;
+        let printer = self.matches().printer_patch(wtr)?;
         let searcher = matches.searcher(self.paths())?;
         let mut builder = SearchWorkerBuilder::new();
         builder
-            .json_stats(matches.is_present("json"))
             .preprocessor(matches.preprocessor())?
             .preprocessor_globs(matches.preprocessor_globs()?)
             .search_zip(matches.is_present("search-zip"))
             .binary_detection_implicit(matches.binary_detection_implicit())
             .binary_detection_explicit(matches.binary_detection_explicit());
         Ok(builder.build(matcher, searcher, printer))
-    }
-
-    /// Returns a zero value for tracking statistics if and only if it has been
-    /// requested.
-    ///
-    /// When this returns a `Stats` value, then it is guaranteed that the
-    /// search worker will be configured to track statistics as well.
-    pub fn stats(&self) -> Result<Option<Stats>> {
-        Ok(if self.command()?.is_search() && self.matches().stats() {
-            Some(Stats::new())
-        } else {
-            None
-        })
     }
 
     /// Return a builder for constructing subjects. A subject represents a
@@ -323,13 +235,12 @@ impl Args {
     /// Execute the given function with a writer to stdout that enables color
     /// support based on the command line configuration.
     pub fn stdout(&self) -> cli::StandardStream {
-        let color = self.matches().color_choice();
         if self.matches().is_present("line-buffered") {
-            cli::stdout_buffered_line(color)
+            cli::stdout_buffered_line(ColorChoice::Never)
         } else if self.matches().is_present("block-buffered") {
-            cli::stdout_buffered_block(color)
+            cli::stdout_buffered_block(ColorChoice::Never)
         } else {
-            cli::stdout(color)
+            cli::stdout(ColorChoice::Never)
         }
     }
 
@@ -342,9 +253,11 @@ impl Args {
     }
 
     /// Return a walker that never uses additional threads.
+    /* XXX decide whether to support this
     pub fn walker(&self) -> Result<Walk> {
         Ok(self.matches().walker_builder(self.paths())?.build())
     }
+    */
 
     /// Return a parallel walker that may use additional threads.
     pub fn walker_parallel(&self) -> Result<WalkParallel> {
@@ -356,126 +269,6 @@ impl Args {
 /// the parsed arguments.
 #[derive(Clone, Debug)]
 struct ArgMatches(clap::ArgMatches<'static>);
-
-/// The output format. Generally, this corresponds to the printer that ripgrep
-/// uses to show search results.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum OutputKind {
-    /// Classic grep-like or ack-like format.
-    Standard,
-    /// Show matching files and possibly the number of matches in each file.
-    Summary,
-    /// Emit match information in the JSON Lines format.
-    JSON,
-}
-
-/// The sort criteria, if present.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct SortBy {
-    /// Whether to reverse the sort criteria (i.e., descending order).
-    reverse: bool,
-    /// The actual sorting criteria.
-    kind: SortByKind,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum SortByKind {
-    /// No sorting at all.
-    None,
-    /// Sort by path.
-    Path,
-    /// Sort by last modified time.
-    LastModified,
-    /// Sort by last accessed time.
-    LastAccessed,
-    /// Sort by creation time.
-    Created,
-}
-
-impl SortBy {
-    fn asc(kind: SortByKind) -> SortBy {
-        SortBy { reverse: false, kind }
-    }
-
-    fn desc(kind: SortByKind) -> SortBy {
-        SortBy { reverse: true, kind }
-    }
-
-    fn none() -> SortBy {
-        SortBy::asc(SortByKind::None)
-    }
-
-    /// Try to check that the sorting criteria selected is actually supported.
-    /// If it isn't, then an error is returned.
-    fn check(&self) -> Result<()> {
-        match self.kind {
-            SortByKind::None | SortByKind::Path => {}
-            SortByKind::LastModified => {
-                env::current_exe()?.metadata()?.modified()?;
-            }
-            SortByKind::LastAccessed => {
-                env::current_exe()?.metadata()?.accessed()?;
-            }
-            SortByKind::Created => {
-                env::current_exe()?.metadata()?.created()?;
-            }
-        }
-        Ok(())
-    }
-
-    fn configure_walk_builder(self, builder: &mut WalkBuilder) {
-        // This isn't entirely optimal. In particular, we will wind up issuing
-        // a stat for many files redundantly. Aside from having potentially
-        // inconsistent results with respect to sorting, this is also slow.
-        // We could fix this here at the expense of memory by caching stat
-        // calls. A better fix would be to find a way to push this down into
-        // directory traversal itself, but that's a somewhat nasty change.
-        match self.kind {
-            SortByKind::None => {}
-            SortByKind::Path => {
-                if self.reverse {
-                    builder.sort_by_file_name(|a, b| a.cmp(b).reverse());
-                } else {
-                    builder.sort_by_file_name(|a, b| a.cmp(b));
-                }
-            }
-            SortByKind::LastModified => {
-                builder.sort_by_file_path(move |a, b| {
-                    sort_by_metadata_time(a, b, self.reverse, |md| {
-                        md.modified()
-                    })
-                });
-            }
-            SortByKind::LastAccessed => {
-                builder.sort_by_file_path(move |a, b| {
-                    sort_by_metadata_time(a, b, self.reverse, |md| {
-                        md.accessed()
-                    })
-                });
-            }
-            SortByKind::Created => {
-                builder.sort_by_file_path(move |a, b| {
-                    sort_by_metadata_time(a, b, self.reverse, |md| {
-                        md.created()
-                    })
-                });
-            }
-        }
-    }
-}
-
-impl SortByKind {
-    fn new(kind: &str) -> SortByKind {
-        match kind {
-            "none" => SortByKind::None,
-            "path" => SortByKind::Path,
-            "modified" => SortByKind::LastModified,
-            "accessed" => SortByKind::LastAccessed,
-            "created" => SortByKind::Created,
-            _ => SortByKind::None,
-        }
-    }
-}
 
 /// Encoding mode the searcher will use.
 #[derive(Clone, Debug)]
@@ -579,8 +372,6 @@ impl ArgMatches {
     fn matcher(&self, patterns: &[String]) -> Result<PatternMatcher> {
         if self.is_present("pcre2") {
             self.matcher_engine("pcre2", patterns)
-        } else if self.is_present("auto-hybrid-regex") {
-            self.matcher_engine("auto", patterns)
         } else {
             let engine = self.value_of_lossy("engine").unwrap();
             self.matcher_engine(&engine, patterns)
@@ -741,83 +532,10 @@ impl ArgMatches {
         Ok(builder.build(&patterns.join("|"))?)
     }
 
-    /// Build a JSON printer that writes results to the given writer.
-    fn printer_json<W: io::Write>(&self, wtr: W) -> Result<JSON<W>> {
-        let mut builder = JSONBuilder::new();
-        builder
-            .pretty(false)
-            .max_matches(self.max_count()?)
-            .always_begin_end(false);
-        Ok(builder.build(wtr))
-    }
-
-    /// Build a Standard printer that writes results to the given writer.
-    ///
-    /// The given paths are used to configure aspects of the printer.
-    ///
-    /// If `separator_search` is true, then the returned printer will assume
-    /// the responsibility of printing a separator between each set of
-    /// search results, when appropriate (e.g., when contexts are enabled).
-    /// When it's set to false, the caller is responsible for handling
-    /// separators.
-    ///
-    /// In practice, we want the printer to handle it in the single threaded
-    /// case but not in the multi-threaded case.
-    fn printer_standard<W: WriteColor>(
-        &self,
-        paths: &[PathBuf],
-        wtr: W,
-        separator_search: bool,
-    ) -> Result<Standard<W>> {
-        let mut builder = StandardBuilder::new();
-        builder
-            .color_specs(self.color_specs()?)
-            .stats(self.stats())
-            .heading(self.heading())
-            .path(self.with_filename(paths))
-            .only_matching(self.is_present("only-matching"))
-            .per_match(self.is_present("vimgrep"))
-            .per_match_one_line(true)
-            .replacement(self.replacement())
-            .max_columns(self.max_columns()?)
-            .max_columns_preview(self.max_columns_preview())
-            .max_matches(self.max_count()?)
-            .column(self.column())
-            .byte_offset(self.is_present("byte-offset"))
-            .trim_ascii(self.is_present("trim"))
-            .separator_search(None)
-            .separator_context(self.context_separator())
-            .separator_field_match(self.field_match_separator())
-            .separator_field_context(self.field_context_separator())
-            .separator_path(self.path_separator()?)
-            .path_terminator(self.path_terminator());
-        if separator_search {
-            builder.separator_search(self.file_separator()?);
-        }
-        Ok(builder.build(wtr))
-    }
-
-    /// Build a Summary printer that writes results to the given writer.
-    ///
-    /// The given paths are used to configure aspects of the printer.
-    ///
-    /// This panics if the output format is not `OutputKind::Summary`.
-    fn printer_summary<W: WriteColor>(
-        &self,
-        paths: &[PathBuf],
-        wtr: W,
-    ) -> Result<Summary<W>> {
-        let mut builder = SummaryBuilder::new();
-        builder
-            .kind(self.summary_kind().expect("summary format"))
-            .color_specs(self.color_specs()?)
-            .stats(self.stats())
-            .path(self.with_filename(paths))
-            .max_matches(self.max_count()?)
-            .exclude_zero(!self.is_present("include-zero"))
-            .separator_field(b":".to_vec())
-            .separator_path(self.path_separator()?)
-            .path_terminator(self.path_terminator());
+    /// Build a Patch printer that writes results to the given writer.
+    fn printer_patch<W: io::Write>(&self, wtr: W) -> Result<Patch<W>> {
+        let mut builder = PatchBuilder::new();
+        builder.replacement(self.replacement()?);
         Ok(builder.build(wtr))
     }
 
@@ -939,7 +657,7 @@ impl ArgMatches {
         patterns.is_empty() || self.max_count().ok() == Some(Some(0))
     }
 
-    /// Returns true if and only if case should be ignore.
+    /// Returns true if and only if case should be ignored.
     ///
     /// If --case-sensitive is present, then case is never ignored, even if
     /// --ignore-case is present.
@@ -956,56 +674,10 @@ impl ArgMatches {
             && !self.is_present("ignore-case")
             && !self.is_present("case-sensitive")
     }
-
-    /// Returns the user's color choice based on command line parameters and
-    /// environment.
-    fn color_choice(&self) -> ColorChoice {
-        let preference = match self.value_of_lossy("color") {
-            None => "auto".to_string(),
-            Some(v) => v,
-        };
-        if preference == "always" {
-            ColorChoice::Always
-        } else if preference == "ansi" {
-            ColorChoice::AlwaysAnsi
-        } else if preference == "auto" {
-            if cli::is_tty_stdout() || self.is_present("pretty") {
-                ColorChoice::Auto
-            } else {
-                ColorChoice::Never
-            }
-        } else {
-            ColorChoice::Never
-        }
-    }
-
-    /// Returns the color specifications given by the user on the CLI.
-    ///
-    /// If the was a problem parsing any of the provided specs, then an error
-    /// is returned.
-    fn color_specs(&self) -> Result<ColorSpecs> {
-        // Start with a default set of color specs.
-        let mut specs = default_color_specs();
-        for spec_str in self.values_of_lossy_vec("colors") {
-            specs.push(spec_str.parse()?);
-        }
-        Ok(ColorSpecs::new(&specs))
-    }
-
-    /// Returns true if and only if column numbers should be shown.
-    fn column(&self) -> bool {
-        if self.is_present("no-column") {
-            return false;
-        }
-        self.is_present("column") || self.is_present("vimgrep")
-    }
-
+    
     /// Returns the before and after contexts from the command line.
     ///
-    /// If a context setting was absent, then `0` is returned.
-    ///
-    /// If there was a problem parsing the values from the user as an integer,
-    /// then an error is returned.
+    /// RipPatch *always* uses a context of 3.
     fn contexts(&self) -> Result<(usize, usize)> {
         let after = self.usize_of("after-context")?.unwrap_or(0);
         let before = self.usize_of("before-context")?.unwrap_or(0);
@@ -1013,41 +685,6 @@ impl ArgMatches {
         Ok(if both > 0 { (both, both) } else { (before, after) })
     }
 
-    /// Returns the unescaped context separator in UTF-8 bytes.
-    ///
-    /// If one was not provided, the default `--` is returned.
-    /// If --no-context-separator is passed, None is returned.
-    fn context_separator(&self) -> Option<Vec<u8>> {
-        let nosep = self.is_present("no-context-separator");
-        let sep = self.value_of_os("context-separator");
-        match (nosep, sep) {
-            (true, _) => None,
-            (false, None) => Some(b"--".to_vec()),
-            (false, Some(sep)) => Some(cli::unescape_os(&sep)),
-        }
-    }
-
-    /// Returns whether the -c/--count or the --count-matches flags were
-    /// passed from the command line.
-    ///
-    /// If --count-matches and --invert-match were passed in, behave
-    /// as if --count and --invert-match were passed in (i.e. rg will
-    /// count inverted matches as per existing behavior).
-    fn counts(&self) -> (bool, bool) {
-        let count = self.is_present("count");
-        let count_matches = self.is_present("count-matches");
-        let invert_matches = self.is_present("invert-match");
-        let only_matching = self.is_present("only-matching");
-        if count_matches && invert_matches {
-            // Treat `-v --count-matches` as `-v -c`.
-            (true, false)
-        } else if count && only_matching {
-            // Treat `-c --only-matching` as `--count-matches`.
-            (false, true)
-        } else {
-            (count, count_matches)
-        }
-    }
 
     /// Parse the dfa-size-limit argument option into a byte count.
     fn dfa_size_limit(&self) -> Result<Option<usize>> {
@@ -1081,35 +718,6 @@ impl ArgMatches {
         Ok(EncodingMode::Some(Encoding::new(&label)?))
     }
 
-    /// Return the file separator to use based on the CLI configuration.
-    fn file_separator(&self) -> Result<Option<Vec<u8>>> {
-        // File separators are only used for the standard grep-line format.
-        if self.output_kind() != OutputKind::Standard {
-            return Ok(None);
-        }
-
-        let (ctx_before, ctx_after) = self.contexts()?;
-        Ok(if self.heading() {
-            Some(b"".to_vec())
-        } else if ctx_before > 0 || ctx_after > 0 {
-            self.context_separator()
-        } else {
-            None
-        })
-    }
-
-    /// Returns true if and only if matches should be grouped with file name
-    /// headings.
-    fn heading(&self) -> bool {
-        if self.is_present("no-heading") || self.is_present("vimgrep") {
-            false
-        } else {
-            cli::is_tty_stdout()
-                || self.is_present("heading")
-                || self.is_present("pretty")
-        }
-    }
-
     /// Returns true if and only if hidden files/directories should be
     /// searched.
     fn hidden(&self) -> bool {
@@ -1130,44 +738,6 @@ impl ArgMatches {
         paths.map(|p| Path::new(p).to_path_buf()).collect()
     }
 
-    /// Returns true if and only if ripgrep is invoked in a way where it knows
-    /// it search exactly one thing.
-    fn is_one_search(&self, paths: &[PathBuf]) -> bool {
-        if paths.len() != 1 {
-            return false;
-        }
-        self.is_only_stdin(paths) || paths[0].is_file()
-    }
-
-    /// Returns true if and only if we're only searching a single thing and
-    /// that thing is stdin.
-    fn is_only_stdin(&self, paths: &[PathBuf]) -> bool {
-        paths == [Path::new("-")]
-    }
-
-    /// Returns true if and only if we should show line numbers.
-    fn line_number(&self, paths: &[PathBuf]) -> bool {
-        if self.output_kind() == OutputKind::Summary {
-            return false;
-        }
-        if self.is_present("no-line-number") {
-            return false;
-        }
-        if self.output_kind() == OutputKind::JSON {
-            return true;
-        }
-
-        // A few things can imply counting line numbers. In particular, we
-        // generally want to show line numbers by default when printing to a
-        // tty for human consumption, except for one interesting case: when
-        // we're only searching stdin. This makes pipelines work as expected.
-        (cli::is_tty_stdout() && !self.is_only_stdin(paths))
-            || self.is_present("line-number")
-            || self.is_present("column")
-            || self.is_present("pretty")
-            || self.is_present("vimgrep")
-    }
-
     /// The maximum number of columns allowed on each line.
     ///
     /// If `0` is provided, then this returns `None`.
@@ -1179,11 +749,6 @@ impl ArgMatches {
     /// exceed the maximum column limit.
     fn max_columns_preview(&self) -> bool {
         self.is_present("max-columns-preview")
-    }
-
-    /// The maximum number of matches permitted.
-    fn max_count(&self) -> Result<Option<u64>> {
-        Ok(self.usize_of("max-count")?.map(|n| n as u64))
     }
 
     /// Parses the max-filesize argument option into a byte count.
@@ -1254,29 +819,6 @@ impl ArgMatches {
         self.is_present("no-ignore-vcs") || self.no_ignore()
     }
 
-    /// Determine the type of output we should produce.
-    fn output_kind(&self) -> OutputKind {
-        if self.is_present("quiet") {
-            // While we don't technically print results (or aggregate results)
-            // in quiet mode, we still support the --stats flag, and those
-            // stats are computed by the Summary printer for now.
-            return OutputKind::Summary;
-        } else if self.is_present("json") {
-            return OutputKind::JSON;
-        }
-
-        let (count, count_matches) = self.counts();
-        let summary = count
-            || count_matches
-            || self.is_present("files-with-matches")
-            || self.is_present("files-without-match");
-        if summary {
-            OutputKind::Summary
-        } else {
-            OutputKind::Standard
-        }
-    }
-
     /// Builds the set of glob overrides from the command line flags.
     fn overrides(&self) -> Result<Override> {
         let globs = self.values_of_lossy_vec("glob");
@@ -1338,61 +880,6 @@ impl ArgMatches {
             Path::new("./").to_path_buf()
         } else {
             Path::new("-").to_path_buf()
-        }
-    }
-
-    /// Returns the unescaped path separator as a single byte, if one exists.
-    ///
-    /// If the provided path separator is more than a single byte, then an
-    /// error is returned.
-    fn path_separator(&self) -> Result<Option<u8>> {
-        let sep = match self.value_of_os("path-separator") {
-            None => return Ok(None),
-            Some(sep) => cli::unescape_os(&sep),
-        };
-        if sep.is_empty() {
-            Ok(None)
-        } else if sep.len() > 1 {
-            Err(From::from(format!(
-                "A path separator must be exactly one byte, but \
-                 the given separator is {} bytes: {}\n\
-                 In some shells on Windows '/' is automatically \
-                 expanded. Use '//' instead.",
-                sep.len(),
-                cli::escape(&sep),
-            )))
-        } else {
-            Ok(Some(sep[0]))
-        }
-    }
-
-    /// Returns the byte that should be used to terminate paths.
-    ///
-    /// Typically, this is only set to `\x00` when the --null flag is provided,
-    /// and `None` otherwise.
-    fn path_terminator(&self) -> Option<u8> {
-        if self.is_present("null") {
-            Some(b'\x00')
-        } else {
-            None
-        }
-    }
-
-    /// Returns the unescaped field context separator. If one wasn't specified,
-    /// then '-' is used as the default.
-    fn field_context_separator(&self) -> Vec<u8> {
-        match self.value_of_os("field-context-separator") {
-            None => b"-".to_vec(),
-            Some(sep) => cli::unescape_os(&sep),
-        }
-    }
-
-    /// Returns the unescaped field match separator. If one wasn't specified,
-    /// then ':' is used as the default.
-    fn field_match_separator(&self) -> Vec<u8> {
-        match self.value_of_os("field-match-separator") {
-            None => b":".to_vec(),
-            Some(sep) => cli::unescape_os(&sep),
         }
     }
 
@@ -1534,56 +1021,10 @@ impl ArgMatches {
         u64_to_usize("regex-size-limit", r)
     }
 
-    /// Returns the replacement string as UTF-8 bytes if it exists.
-    fn replacement(&self) -> Option<Vec<u8>> {
+    /// Returns the replacement string as UTF-8 bytes; it must exist.
+    fn replacement(&self) -> Result<Vec<u8>> {
         self.value_of_lossy("replace").map(|s| s.into_bytes())
-    }
-
-    /// Returns the sorting criteria based on command line parameters.
-    fn sort_by(&self) -> Result<SortBy> {
-        // For backcompat, continue supporting deprecated --sort-files flag.
-        if self.is_present("sort-files") {
-            return Ok(SortBy::asc(SortByKind::Path));
-        }
-        let sortby = match self.value_of_lossy("sort") {
-            None => match self.value_of_lossy("sortr") {
-                None => return Ok(SortBy::none()),
-                Some(choice) => SortBy::desc(SortByKind::new(&choice)),
-            },
-            Some(choice) => SortBy::asc(SortByKind::new(&choice)),
-        };
-        Ok(sortby)
-    }
-
-    /// Returns true if and only if aggregate statistics for a search should
-    /// be tracked.
-    ///
-    /// Generally, this is only enabled when explicitly requested by in the
-    /// command line arguments via the --stats flag, but this can also be
-    /// enabled implicitly via the output format, e.g., for JSON Lines.
-    fn stats(&self) -> bool {
-        self.output_kind() == OutputKind::JSON || self.is_present("stats")
-    }
-
-    /// When the output format is `Summary`, this returns the type of summary
-    /// output to show.
-    ///
-    /// This returns `None` if the output format is not `Summary`.
-    fn summary_kind(&self) -> Option<SummaryKind> {
-        let (count, count_matches) = self.counts();
-        if self.is_present("quiet") {
-            Some(SummaryKind::Quiet)
-        } else if count_matches {
-            Some(SummaryKind::CountMatches)
-        } else if count {
-            Some(SummaryKind::Count)
-        } else if self.is_present("files-with-matches") {
-            Some(SummaryKind::PathWithMatch)
-        } else if self.is_present("files-without-match") {
-            Some(SummaryKind::PathWithoutMatch)
-        } else {
-            None
-        }
+            .ok_or(ErrReplacementTextNotSet.into())
     }
 
     /// Return the number of threads that should be used for parallelism.
@@ -1630,22 +1071,6 @@ impl ArgMatches {
     /// enabled.
     fn pcre2_unicode(&self) -> bool {
         self.is_present("pcre2") && self.unicode()
-    }
-
-    /// Returns true if and only if file names containing each match should
-    /// be emitted.
-    fn with_filename(&self, paths: &[PathBuf]) -> bool {
-        if self.is_present("no-filename") {
-            false
-        } else {
-            let path_stdin = Path::new("-");
-            self.is_present("with-filename")
-                || self.is_present("vimgrep")
-                || paths.len() > 1
-                || paths
-                    .get(0)
-                    .map_or(false, |p| p != path_stdin && p.is_dir())
-        }
     }
 }
 
@@ -1762,20 +1187,6 @@ and look-around.",
     suggest(msg)
 }
 
-fn suggest_multiline(msg: String) -> String {
-    if msg.contains("the literal") && msg.contains("not allowed") {
-        format!(
-            "{}
-
-Consider enabling multiline mode with the --multiline flag (or -U for short).
-When multiline mode is enabled, new line characters can be matched.",
-            msg
-        )
-    } else {
-        msg
-    }
-}
-
 /// Convert the result of parsing a human readable file size to a `usize`,
 /// failing if the type does not fit.
 fn u64_to_usize(arg_name: &str, value: Option<u64>) -> Result<Option<usize>> {
@@ -1789,35 +1200,6 @@ fn u64_to_usize(arg_name: &str, value: Option<u64>) -> Result<Option<usize>> {
         Ok(Some(value as usize))
     } else {
         Err(From::from(format!("number too large for {}", arg_name)))
-    }
-}
-
-/// Builds a comparator for sorting two files according to a system time
-/// extracted from the file's metadata.
-///
-/// If there was a problem extracting the metadata or if the time is not
-/// available, then both entries compare equal.
-fn sort_by_metadata_time<G>(
-    p1: &Path,
-    p2: &Path,
-    reverse: bool,
-    get_time: G,
-) -> cmp::Ordering
-where
-    G: Fn(&fs::Metadata) -> io::Result<SystemTime>,
-{
-    let t1 = match p1.metadata().and_then(|md| get_time(&md)) {
-        Ok(t) => t,
-        Err(_) => return cmp::Ordering::Equal,
-    };
-    let t2 = match p2.metadata().and_then(|md| get_time(&md)) {
-        Ok(t) => t,
-        Err(_) => return cmp::Ordering::Equal,
-    };
-    if reverse {
-        t1.cmp(&t2).reverse()
-    } else {
-        t1.cmp(&t2)
     }
 }
 

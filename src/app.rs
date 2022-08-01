@@ -2,7 +2,6 @@
 // which is generally a subset of ripgrep command line arguments.
 //
 use clap::{self, crate_authors, crate_version, App, AppSettings};
-use lazy_static::lazy_static;
 
 const ABOUT: &str = "
 RipPatch (rp) generates a patch file from a ripgrep (rg) search together with a
@@ -34,12 +33,6 @@ OPTIONS:
 
 /// Build a clap application parameterized by usage strings.
 pub fn app() -> App<'static, 'static> {
-    // XXX copied from ripgrep; figure out if there's a more idiomatic way to
-    // embed a version string
-    lazy_static! {
-        static ref LONG_VERSION: String = long_version(None, true);
-    }
-
     let mut app = App::new("RipPatch")
         .author(crate_authors!())
         .version(crate_version!())
@@ -1069,7 +1062,7 @@ Note that the 'pcre2' engine is an optional ripgrep feature. If PCRE2 wasn't
 included in your build of ripgrep, then using this flag will result in ripgrep
 printing an error message and exiting.
 
-This overrides previous uses of --pcre2 and --auto-hybrid-regex flags.
+This overrides previous uses of --pcre2.
 "
     );
     let arg = RGArg::flag("engine", "ENGINE")
@@ -1078,9 +1071,7 @@ This overrides previous uses of --pcre2 and --auto-hybrid-regex flags.
         .possible_values(&["default", "pcre2", "auto"])
         .default_value("default")
         .overrides("pcre2")
-        .overrides("no-pcre2")
-        .overrides("auto-hybrid-regex")
-        .overrides("no-auto-hybrid-regex");
+        .overrides("no-pcre2");
     args.push(arg);
 }
 
@@ -1913,16 +1904,12 @@ This flag can be disabled with --no-pcre2.
         .help(SHORT)
         .long_help(LONG)
         .overrides("no-pcre2")
-        .overrides("auto-hybrid-regex")
-        .overrides("no-auto-hybrid-regex")
         .overrides("engine");
     args.push(arg);
 
     let arg = RGArg::switch("no-pcre2")
         .hidden()
         .overrides("pcre2")
-        .overrides("auto-hybrid-regex")
-        .overrides("no-auto-hybrid-regex")
         .overrides("engine");
     args.push(arg);
 }

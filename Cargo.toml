@@ -5,7 +5,17 @@ edition = "2021"
 
 [dependencies]
 grep = "*"
-bstr = "*"
+ignore = "0.4.18"
+bstr = "0.2.12"
+log = "0.4.5"
+num_cpus = "1.8.0"
+regex = "1.3.5"
+termcolor = "1.1.0"
+
+[dependencies.clap]
+version = "2.33.0"
+default-features = false
+features = ["suggestions"]
 
 [patch.crates-io]
 grep = { path = "../ripgrep/crates/grep" }

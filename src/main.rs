@@ -1,10 +1,25 @@
+use std::error;
+use std::io;
 use std::process;
+use std::sync::Mutex;
+use std::time::Instant;
+
+use ignore::WalkState;
+
+use args::Args;
 
 mod app;
 mod args;
+mod config;
+mod logger;
+mod messages;
 mod patch;
 mod patcht;
+mod search;
+mod subject;
 mod util;
+
+type Result<T> = ::std::result::Result<T, Box<dyn error::Error>>;
 
 fn main() {
     if let Err(err) = Args::parse().and_then(search_parallel) {
@@ -13,8 +28,6 @@ fn main() {
     }
 } 
 
-// XXX copied from rg
-/*
 fn search_parallel(args: &Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
@@ -85,4 +98,14 @@ fn search_parallel(args: &Args) -> Result<bool> {
     }
     Ok(matched.load(SeqCst))
 }
-*/
+
+fn eprint_nothing_searched() {
+    // XXX this error message is still useful... and basically correct, b/c the
+    // guts of RipPatch *are* ripgrep. It still feels weird ot copy it
+    // wholesale.
+    err_message!(
+        "No files were searched, which means ripgrep probably \
+         applied a filter you didn't expect.\n\
+         Running with --debug will show why files are being skipped."
+    );
+}
