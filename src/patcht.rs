@@ -44,6 +44,7 @@ impl PatchHunk {
             .starting_line_number
             .expect("logic error: line numbers are not tracked");
         match self.lines.len() {
+            0 => panic!("logic error: should not write patch hunk with no matches"),
             1 => write!(wtr, "@@ -{line} +{line} @@\n", line = number)?,
             _ => write!(
                 wtr,
@@ -64,15 +65,12 @@ impl PatchHunk {
     }
 
     pub fn add_match(&mut self, mat: &SinkMatch<'_>, replacement: &[u8]) {
-        // XXX validate `unwrap` here - when would a match not have a line
-        // number? (Presumably this case would not be supported by this printer)
         let _ = self
             .starting_line_number
             .get_or_insert_with(|| mat.line_number().expect("logic error: line numbers are not tracked"));
         let orig = mat.bytes().to_vec();
         let mut modified = replacement.to_vec();
         // Unlike the match, the replacement does not include the line ending.
-        // XXX find out if line-endings need to be consolidated
         modified.push_char('\n');
         self.lines.push(PatchLine::Changed(orig, modified));
     }
@@ -84,8 +82,6 @@ impl PatchLine {
         match self {
             Unchanged(line) => {
                 wtr.write(b" ")?;
-                // XXX figure out if lines will have newlines included
-                // XXX figure out if 'write' is still safe here, with potentially long lines
                 wtr.write(&line)?;
             }
             Changed(old, new) => {

@@ -1,8 +1,8 @@
 use std::io;
-use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
 use std::time::Instant;
 
+use bstr::ByteVec;
 use grep::matcher::{Match, Matcher};
 use grep::printer::Replacer;
 // util::find_iter_at_in_context};
@@ -175,20 +175,17 @@ impl<'p, 's, M: Matcher, W: io::Write> PatchSink<'p, 's, M, W> {
 }
 
 fn write_header<W: io::Write>(wtr: &mut W, path: &Path) -> io::Result<()> {
-    let path_bytes = path.as_os_str().as_bytes();
+    let ppath = Vec::from_path_lossy(path);
     wtr.write(ORIG_PREFIX)?;
-    wtr.write(path_bytes)?;
+    wtr.write(&ppath)?;
     // The GNU and POSIX documentation both state that diffs include file
     // timestamps, but git doesn't include one with either `diff` or
     // `format-patch`, and indeed GNU `patch` doesn't seem to need timestamps.
     // (Haven't checked BSD but I'd be surprised if it's different in this
     // regard.)
-
-    // XXX should the line-endings for patch files match the native line-endings?
-    // Will this be done automatically by the `BufferWriter`?
     wtr.write(&[b'\n'])?;
     wtr.write(MOD_PREFIX)?;
-    wtr.write(path_bytes)?;
+    wtr.write(&ppath)?;
     wtr.write(&[b'\n'])?;
     Ok(())
 }

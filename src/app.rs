@@ -559,8 +559,8 @@ fn arg_replace(args: &mut Vec<RGArg>) {
     const LONG: &str = long!(
         "\
 The replacement text to use to generate the patch file. Applying the patch
-will replace every match with the text given when printing results. (Note that
-RipPatch will only generate the patch; it will not modify your files.)
+will replace every match with replacement text. (Note that RipPatch will only
+generate the patch; it will not modify your files.)
 
 Behavior matches ripgrep:
 
