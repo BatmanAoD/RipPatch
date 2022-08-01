@@ -402,14 +402,6 @@ impl RGArg {
         self
     }
 
-    /// Sets conflicting arguments. That is, if this argument is used whenever
-    /// any of the other arguments given here are used, then clap will report
-    /// an error.
-    fn conflicts(mut self, names: &[&'static str]) -> RGArg {
-        self.claparg = self.claparg.conflicts_with_all(names);
-        self
-    }
-
     /// Sets an overriding argument. That is, if this argument and the given
     /// argument are both provided by an end user, then the "last" one will
     /// win. ripgrep will behave as if any previous instantiations did not

@@ -37,31 +37,6 @@ use crate::search::{PatternMatcher, SearchWorker, SearchWorkerBuilder};
 use crate::subject::SubjectBuilder;
 use crate::Result;
 
-/// The command that ripgrep should execute based on the command line
-/// configuration.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Command {
-    /// Search using exactly one thread.
-    Search,
-    /// Search using possibly many threads.
-    SearchParallel,
-    /// The command line parameters suggest that a search should occur, but
-    /// ripgrep knows that a match can never be found (e.g., no given patterns
-    /// or --max-count=0).
-    SearchNever,
-    /// Show the files that would be searched, but don't actually search them,
-    /// and use exactly one thread.
-    Files,
-    /// Show the files that would be searched, but don't actually search them,
-    /// and perform directory traversal using possibly many threads.
-    FilesParallel,
-    /// List all file type definitions configured, including the default file
-    /// types and any additional file types added to the command line.
-    Types,
-    /// Print the version of PCRE2 in use.
-    PCRE2Version,
-}
-
 #[derive(Debug, Copy, Clone)]
 struct ErrReplacementTextNotSet {}
 
@@ -74,18 +49,6 @@ impl fmt::Display for ErrReplacementTextNotSet {
 impl Error for ErrReplacementTextNotSet {}
 
 static ERR_NO_REPLACEMENT: ErrReplacementTextNotSet = ErrReplacementTextNotSet {};
-
-impl Command {
-    /// Returns true if and only if this command requires executing a search.
-    fn is_search(&self) -> bool {
-        use self::Command::*;
-
-        match *self {
-            Search | SearchParallel => true,
-            SearchNever | Files | FilesParallel | Types | PCRE2Version => false,
-        }
-    }
-}
 
 /// The primary configuration object used throughout ripgrep. It provides a
 /// high-level convenient interface to the provided command line arguments.
@@ -101,6 +64,7 @@ struct ArgsImp {
     matches: ArgMatches,
     /// The patterns provided at the command line and/or via the -f/--file
     /// flag. This may be empty.
+    // XXX why is this not used?
     patterns: Vec<String>,
     /// A matcher built from the patterns.
     ///
@@ -227,33 +191,6 @@ impl Args {
         builder.strip_dot_prefix(self.using_default_path());
         builder
     }
-
-    /// Execute the given function with a writer to stdout that enables color
-    /// support based on the command line configuration.
-    pub fn stdout(&self) -> cli::StandardStream {
-        if self.matches().is_present("line-buffered") {
-            cli::stdout_buffered_line(ColorChoice::Never)
-        } else if self.matches().is_present("block-buffered") {
-            cli::stdout_buffered_block(ColorChoice::Never)
-        } else {
-            cli::stdout(ColorChoice::Never)
-        }
-    }
-
-    /// Return the type definitions compiled into ripgrep.
-    ///
-    /// If there was a problem reading and parsing the type definitions, then
-    /// this returns an error.
-    pub fn type_defs(&self) -> Result<Vec<FileTypeDef>> {
-        Ok(self.matches().types()?.definitions().to_vec())
-    }
-
-    /// Return a walker that never uses additional threads.
-    /* XXX decide whether to support this
-    pub fn walker(&self) -> Result<Walk> {
-        Ok(self.matches().walker_builder(self.paths())?.build())
-    }
-    */
 
     /// Return a parallel walker that may use additional threads.
     pub fn walker_parallel(&self) -> Result<WalkParallel> {
@@ -624,6 +561,7 @@ impl ArgMatches {
         }
     }
 
+    // XXX why is this not called?
     /// Returns true if the command line configuration implies that a match
     /// can never be shown.
     fn can_never_match(&self, patterns: &[String]) -> bool {
@@ -1038,19 +976,6 @@ impl ArgMatches {
     /// present.
     fn values_of_lossy_vec(&self, name: &str) -> Vec<String> {
         self.values_of_lossy(name).unwrap_or_else(Vec::new)
-    }
-
-    /// Safely reads an arg value with the given name, and if it's present,
-    /// tries to parse it as a usize value.
-    ///
-    /// If the number is zero, then it is considered absent and `None` is
-    /// returned.
-    fn usize_of_nonzero(&self, name: &str) -> Result<Option<usize>> {
-        let n = match self.usize_of(name)? {
-            None => return Ok(None),
-            Some(n) => n,
-        };
-        Ok(if n == 0 { None } else { Some(n) })
     }
 
     /// Safely reads an arg value with the given name, and if it's present,
