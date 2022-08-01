@@ -8,12 +8,12 @@ use grep::cli;
 use grep::matcher::Matcher;
 #[cfg(feature = "pcre2")]
 use grep::pcre2::RegexMatcher as PCRE2RegexMatcher;
-use grep::printer::Patch;
 use grep::regex::RegexMatcher as RustRegexMatcher;
 use grep::searcher::{BinaryDetection, Searcher};
 use ignore::overrides::Override;
 use termcolor::WriteColor;
 
+use crate::patch::Patch;
 use crate::subject::Subject;
 
 /// The configuration for the search worker. Among a few other things, the
@@ -74,7 +74,7 @@ impl SearchWorkerBuilder {
 
     /// Create a new search worker using the given searcher, matcher and
     /// printer.
-    pub fn build<W: WriteColor>(
+    pub fn build<W>(
         &self,
         matcher: PatternMatcher,
         searcher: Searcher,
@@ -91,18 +91,6 @@ impl SearchWorkerBuilder {
             searcher,
             printer,
         }
-    }
-
-    /// Forcefully use JSON to emit statistics, even if the underlying printer
-    /// is not the JSON printer.
-    ///
-    /// This is useful for implementing flag combinations like
-    /// `--json --quiet`, which uses the summary printer for implementing
-    /// `--quiet` but still wants to emit summary statistics, which should
-    /// be JSON formatted because of the `--json` flag.
-    pub fn json_stats(&mut self, yes: bool) -> &mut SearchWorkerBuilder {
-        self.config.json_stats = yes;
-        self
     }
 
     /// Set the path to a preprocessor command.

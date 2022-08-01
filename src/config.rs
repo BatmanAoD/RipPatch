@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use bstr::{io::BufReadExt, ByteSlice};
 use log;
 
-use crate::Result;
+use crate::{Result, message};
 
 /// Return a sequence of arguments derived from ripgrep rc configuration files.
 pub fn args() -> Vec<OsString> {

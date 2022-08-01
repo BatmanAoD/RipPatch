@@ -76,17 +76,17 @@ pub struct Patch<W> {
     matches: Vec<Match>,
 }
 
-/* XXX see if we need these
 impl<W> Patch<W> {
+    /// Return a mutable reference to the underlying writer.
+    pub fn get_mut(&mut self) -> &mut W {
+        &mut self.wtr
+    }
+
+/* XXX see if we need these
     /// Returns true if and only if this printer has written at least one byte
     /// to the underlying writer during any of the previous searches.
     pub fn has_written(&self) -> bool {
         self.wtr.total_count() > 0
-    }
-
-    /// Return a mutable reference to the underlying writer.
-    pub fn get_mut(&mut self) -> &mut W {
-        self.wtr.get_mut()
     }
 
     /// Consume this printer and return back ownership of the underlying
@@ -94,8 +94,8 @@ impl<W> Patch<W> {
     pub fn into_inner(self) -> W {
         self.wtr.into_inner()
     }
-}
 */
+}
 
 /// An implementation of `Sink` associated with a matcher and an optional file
 /// path for the patch printer.

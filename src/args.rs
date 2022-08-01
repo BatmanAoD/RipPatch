@@ -16,10 +16,6 @@ use grep::pcre2::{
     RegexMatcher as PCRE2RegexMatcher,
     RegexMatcherBuilder as PCRE2RegexMatcherBuilder,
 };
-use grep::printer::{
-    default_color_specs, ColorSpecs, JSONBuilder, Standard, StandardBuilder,
-    Stats, Summary, SummaryBuilder, SummaryKind, JSON,
-};
 use grep::regex::{
     RegexMatcher as RustRegexMatcher,
     RegexMatcherBuilder as RustRegexMatcherBuilder,
@@ -42,7 +38,7 @@ use crate::logger::Logger;
 use crate::messages::{set_ignore_messages, set_messages};
 use crate::patch::{Patch, PatchBuilder};
 use crate::search::{
-    PatternMatcher, Printer, SearchWorker, SearchWorkerBuilder,
+    PatternMatcher, SearchWorker, SearchWorkerBuilder,
 };
 use crate::subject::SubjectBuilder;
 use crate::Result;
@@ -454,24 +450,12 @@ impl ArgMatches {
             .unicode(self.unicode())
             .octal(false)
             .word(self.is_present("word-regexp"));
-        if self.is_present("multiline") {
-            builder.dot_matches_new_line(self.is_present("multiline-dotall"));
-            if self.is_present("crlf") {
-                builder.crlf(true).line_terminator(None);
-            }
-        } else {
-            builder.line_terminator(Some(b'\n')).dot_matches_new_line(false);
-            if self.is_present("crlf") {
-                builder.crlf(true);
-            }
-            // We don't need to set this in multiline mode since mulitline
-            // matchers don't use optimizations related to line terminators.
-            // Moreover, a mulitline regex used with --null-data should
-            // be allowed to match NUL bytes explicitly, which this would
-            // otherwise forbid.
-            if self.is_present("null-data") {
-                builder.line_terminator(Some(b'\x00'));
-            }
+        builder.line_terminator(Some(b'\n')).dot_matches_new_line(false);
+        if self.is_present("crlf") {
+            builder.crlf(true);
+        }
+        if self.is_present("null-data") {
+            builder.line_terminator(Some(b'\x00'));
         }
         if let Some(limit) = self.regex_size_limit()? {
             builder.size_limit(limit);
@@ -484,10 +468,7 @@ impl ArgMatches {
         } else {
             builder.build(&patterns.join("|"))
         };
-        match res {
-            Ok(m) => Ok(m),
-            Err(err) => Err(From::from(suggest_multiline(err.to_string()))),
-        }
+        Ok(res?)
     }
 
     /// Build a matcher using PCRE2.
@@ -553,7 +534,7 @@ impl ArgMatches {
         builder
             .line_terminator(line_term)
             .invert_match(self.is_present("invert-match"))
-            .line_number(self.line_number(paths))
+            .line_number(true)
             .multi_line(self.is_present("multiline"))
             .before_context(ctx_before)
             .after_context(ctx_after)
@@ -608,9 +589,6 @@ impl ArgMatches {
         if !self.no_ignore() {
             builder.add_custom_ignore_filename(".rgignore");
         }
-        let sortby = self.sort_by()?;
-        sortby.check()?;
-        sortby.configure_walk_builder(&mut builder);
         Ok(builder)
     }
 }
@@ -654,7 +632,7 @@ impl ArgMatches {
     /// Returns true if the command line configuration implies that a match
     /// can never be shown.
     fn can_never_match(&self, patterns: &[String]) -> bool {
-        patterns.is_empty() || self.max_count().ok() == Some(Some(0))
+        patterns.is_empty()
     }
 
     /// Returns true if and only if case should be ignored.
@@ -1029,9 +1007,6 @@ impl ArgMatches {
 
     /// Return the number of threads that should be used for parallelism.
     fn threads(&self) -> Result<usize> {
-        if self.sort_by()?.kind != SortByKind::None {
-            return Ok(1);
-        }
         let threads = self.usize_of("threads")?.unwrap_or(0);
         Ok(if threads == 0 { cmp::min(12, num_cpus::get()) } else { threads })
     }

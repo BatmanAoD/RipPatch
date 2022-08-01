@@ -1,7 +1,6 @@
 use std::error;
 use std::io;
 use std::process;
-use std::sync::Mutex;
 use std::time::Instant;
 
 use ignore::WalkState;
@@ -28,21 +27,18 @@ fn main() {
     }
 } 
 
-fn search_parallel(args: &Args) -> Result<bool> {
+fn search_parallel(args: Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
 
-    let quit_after_match = args.quit_after_match()?;
     let started_at = Instant::now();
     let subject_builder = args.subject_builder();
-    let bufwtr = args.buffer_writer()?;
-    let stats = args.stats()?.map(Mutex::new);
+    let bufwtr = args.buffer_writer();
     let matched = AtomicBool::new(false);
     let searched = AtomicBool::new(false);
     let mut searcher_err = None;
     args.walker_parallel()?.run(|| {
         let bufwtr = &bufwtr;
-        let stats = &stats;
         let matched = &matched;
         let searched = &searched;
         let subject_builder = &subject_builder;
@@ -71,10 +67,6 @@ fn search_parallel(args: &Args) -> Result<bool> {
             if search_result.has_match() {
                 matched.store(true, SeqCst);
             }
-            if let Some(ref locked_stats) = *stats {
-                let mut stats = locked_stats.lock().unwrap();
-                *stats += search_result.stats().unwrap();
-            }
             if let Err(err) = bufwtr.print(searcher.printer().get_mut()) {
                 // A broken pipe means graceful termination.
                 if err.kind() == io::ErrorKind::BrokenPipe {
@@ -83,11 +75,7 @@ fn search_parallel(args: &Args) -> Result<bool> {
                 // Otherwise, we continue on our merry way.
                 err_message!("{}: {}", subject.path().display(), err);
             }
-            if matched.load(SeqCst) && quit_after_match {
-                WalkState::Quit
-            } else {
-                WalkState::Continue
-            }
+            WalkState::Continue
         })
     });
     if let Some(err) = searcher_err.take() {

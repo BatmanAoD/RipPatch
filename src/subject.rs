@@ -3,6 +3,8 @@ use std::path::Path;
 use ignore::{self, DirEntry};
 use log;
 
+use crate::{err_message, ignore_message};
+
 /// A configuration for describing how subjects should be built.
 #[derive(Clone, Debug)]
 struct Config {
