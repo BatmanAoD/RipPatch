@@ -36,11 +36,7 @@ where
 /// Given a buf and some bounds, if there is a line terminator at the end of
 /// the given bounds in buf, then the bounds are trimmed to remove the line
 /// terminator.
-pub fn trim_line_terminator(
-    searcher: &Searcher,
-    buf: &[u8],
-    line: &mut Match,
-) {
+pub fn trim_line_terminator(searcher: &Searcher, buf: &[u8], line: &mut Match) {
     let lineterm = searcher.line_terminator();
     if lineterm.is_suffix(&buf[*line]) {
         let mut end = line.end() - 1;

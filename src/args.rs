@@ -15,16 +15,12 @@ use grep::cli;
 use grep::matcher::LineTerminator;
 #[cfg(feature = "pcre2")]
 use grep::pcre2::{
-    RegexMatcher as PCRE2RegexMatcher,
-    RegexMatcherBuilder as PCRE2RegexMatcherBuilder,
+    RegexMatcher as PCRE2RegexMatcher, RegexMatcherBuilder as PCRE2RegexMatcherBuilder,
 };
 use grep::regex::{
-    RegexMatcher as RustRegexMatcher,
-    RegexMatcherBuilder as RustRegexMatcherBuilder,
+    RegexMatcher as RustRegexMatcher, RegexMatcherBuilder as RustRegexMatcherBuilder,
 };
-use grep::searcher::{
-    BinaryDetection, Encoding, MmapChoice, Searcher, SearcherBuilder,
-};
+use grep::searcher::{BinaryDetection, Encoding, MmapChoice, Searcher, SearcherBuilder};
 use ignore::overrides::{Override, OverrideBuilder};
 use ignore::types::{FileTypeDef, Types, TypesBuilder};
 use ignore::{WalkBuilder, WalkParallel};
@@ -39,9 +35,7 @@ use crate::ignore_message;
 use crate::logger::Logger;
 use crate::messages::{set_ignore_messages, set_messages};
 use crate::patch::{Patch, PatchBuilder};
-use crate::search::{
-    PatternMatcher, SearchWorker, SearchWorkerBuilder,
-};
+use crate::search::{PatternMatcher, SearchWorker, SearchWorkerBuilder};
 use crate::subject::SubjectBuilder;
 use crate::Result;
 
@@ -71,7 +65,7 @@ pub enum Command {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct ErrReplacementTextNotSet{}
+struct ErrReplacementTextNotSet {}
 
 impl fmt::Display for ErrReplacementTextNotSet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -81,7 +75,7 @@ impl fmt::Display for ErrReplacementTextNotSet {
 
 impl Error for ErrReplacementTextNotSet {}
 
-static ERR_NO_REPLACEMENT: ErrReplacementTextNotSet = ErrReplacementTextNotSet{};
+static ERR_NO_REPLACEMENT: ErrReplacementTextNotSet = ErrReplacementTextNotSet {};
 
 impl Command {
     /// Returns true if and only if this command requires executing a search.
@@ -90,9 +84,7 @@ impl Command {
 
         match *self {
             Search | SearchParallel => true,
-            SearchNever | Files | FilesParallel | Types | PCRE2Version => {
-                false
-            }
+            SearchNever | Files | FilesParallel | Types | PCRE2Version => false,
         }
     }
 }
@@ -214,10 +206,7 @@ impl Args {
     /// Build a worker for executing searches.
     ///
     /// Search results are written to the given writer.
-    pub fn search_worker<W: io::Write>(
-        &self,
-        wtr: W,
-    ) -> Result<SearchWorker<W>> {
+    pub fn search_worker<W: io::Write>(&self, wtr: W) -> Result<SearchWorker<W>> {
         let matches = self.matches();
         let matcher = self.matcher().clone();
         let printer = self.matches().printer_patch(wtr)?;
@@ -270,7 +259,10 @@ impl Args {
 
     /// Return a parallel walker that may use additional threads.
     pub fn walker_parallel(&self) -> Result<WalkParallel> {
-        Ok(self.matches().walker_builder(self.paths())?.build_parallel())
+        Ok(self
+            .matches()
+            .walker_builder(self.paths())?
+            .build_parallel())
     }
 }
 
@@ -326,9 +318,7 @@ impl ArgMatches {
     fn reconfigure(self) -> Result<ArgMatches> {
         // If the end user says no config, then respect it.
         if self.is_present("no-config") {
-            log::debug!(
-                "not reading config files because --no-config is present"
-            );
+            log::debug!("not reading config files because --no-config is present");
             return Ok(self);
         }
         // If the user wants ripgrep to use a config file, then parse args
@@ -392,11 +382,7 @@ impl ArgMatches {
     ///
     /// If there was a problem building the matcher (e.g., a syntax error),
     /// then this returns an error.
-    fn matcher_engine(
-        &self,
-        engine: &str,
-        patterns: &[String],
-    ) -> Result<PatternMatcher> {
+    fn matcher_engine(&self, engine: &str, patterns: &[String]) -> Result<PatternMatcher> {
         match engine {
             "default" => {
                 let matcher = match self.matcher_rust(patterns) {
@@ -423,10 +409,7 @@ impl ArgMatches {
                     }
                     Err(err) => err,
                 };
-                log::debug!(
-                    "error building Rust regex in hybrid mode:\n{}",
-                    rust_err,
-                );
+                log::debug!("error building Rust regex in hybrid mode:\n{}", rust_err,);
 
                 let pcre_err = match self.matcher_engine("pcre2", patterns) {
                     Ok(matcher) => return Ok(matcher),
@@ -463,7 +446,9 @@ impl ArgMatches {
             .unicode(self.unicode())
             .octal(false)
             .word(self.is_present("word-regexp"));
-        builder.line_terminator(Some(b'\n')).dot_matches_new_line(false);
+        builder
+            .line_terminator(Some(b'\n'))
+            .dot_matches_new_line(false);
         if self.is_present("crlf") {
             builder.crlf(true);
         }
@@ -615,8 +600,7 @@ impl ArgMatches {
     /// implicitly searched via recursive directory traversal.
     fn binary_detection_implicit(&self) -> BinaryDetection {
         let none = self.is_present("text") || self.is_present("null-data");
-        let convert =
-            self.is_present("binary") || self.unrestricted_count() >= 3;
+        let convert = self.is_present("binary") || self.unrestricted_count() >= 3;
         if none {
             BinaryDetection::none()
         } else if convert {
@@ -665,7 +649,7 @@ impl ArgMatches {
             && !self.is_present("ignore-case")
             && !self.is_present("case-sensitive")
     }
-    
+
     /// Returns the before and after contexts from the command line.
     ///
     /// RipPatch *always* uses a context of 3.
@@ -673,9 +657,12 @@ impl ArgMatches {
         let after = self.usize_of("after-context")?.unwrap_or(0);
         let before = self.usize_of("before-context")?.unwrap_or(0);
         let both = self.usize_of("context")?.unwrap_or(0);
-        Ok(if both > 0 { (both, both) } else { (before, after) })
+        Ok(if both > 0 {
+            (both, both)
+        } else {
+            (before, after)
+        })
     }
-
 
     /// Parse the dfa-size-limit argument option into a byte count.
     fn dfa_size_limit(&self) -> Result<Option<usize>> {
@@ -831,10 +818,7 @@ impl ArgMatches {
         };
         // If --file, --files or --regexp is given, then the first path is
         // always in `pattern`.
-        if self.is_present("file")
-            || self.is_present("files")
-            || self.is_present("regexp")
-        {
+        if self.is_present("file") || self.is_present("files") || self.is_present("regexp") {
             if let Some(path) = self.value_of_os("pattern") {
                 paths.insert(0, Path::new(path).to_path_buf());
             }
@@ -1001,7 +985,8 @@ impl ArgMatches {
 
     /// Returns the replacement string as UTF-8 bytes; it must exist.
     fn replacement(&self) -> Result<Vec<u8>> {
-        let r = self.value_of_lossy("pos_replace")
+        let r = self
+            .value_of_lossy("pos_replace")
             .or(self.value_of_lossy("replace"))
             .map(|s| s.into_bytes())
             .ok_or(ERR_NO_REPLACEMENT)?;
@@ -1011,7 +996,11 @@ impl ArgMatches {
     /// Return the number of threads that should be used for parallelism.
     fn threads(&self) -> Result<usize> {
         let threads = self.usize_of("threads")?.unwrap_or(0);
-        Ok(if threads == 0 { cmp::min(12, num_cpus::get()) } else { threads })
+        Ok(if threads == 0 {
+            cmp::min(12, num_cpus::get())
+        } else {
+            threads
+        })
     }
 
     /// Builds a file type matcher from the command line flags.
@@ -1086,10 +1075,7 @@ impl ArgMatches {
     ///
     /// If the aforementioned format is not recognized, then this returns an
     /// error.
-    fn parse_human_readable_size(
-        &self,
-        arg_name: &str,
-    ) -> Result<Option<u64>> {
+    fn parse_human_readable_size(&self, arg_name: &str) -> Result<Option<u64>> {
         let size = match self.value_of_lossy(arg_name) {
             None => return Ok(None),
             Some(size) => size,

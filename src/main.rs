@@ -26,7 +26,7 @@ fn main() {
         eprintln!("{}", err);
         process::exit(2);
     }
-} 
+}
 
 fn search_parallel(args: Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;

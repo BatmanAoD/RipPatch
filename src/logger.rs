@@ -52,12 +52,7 @@ impl Log for Logger {
                 );
             }
             _ => {
-                eprintln!(
-                    "{}|{}: {}",
-                    record.level(),
-                    record.target(),
-                    record.args()
-                );
+                eprintln!("{}|{}: {}", record.level(), record.target(), record.args());
             }
         }
     }

@@ -111,10 +111,7 @@ impl SearchWorkerBuilder {
     /// Set the globs for determining which files should be run through the
     /// preprocessor. By default, with no globs and a preprocessor specified,
     /// every file is run through the preprocessor.
-    pub fn preprocessor_globs(
-        &mut self,
-        globs: Override,
-    ) -> &mut SearchWorkerBuilder {
+    pub fn preprocessor_globs(&mut self, globs: Override) -> &mut SearchWorkerBuilder {
         self.config.preprocessor_globs = globs;
         self
     }
@@ -250,15 +247,16 @@ impl<W: WriteColor> SearchWorker<W> {
         if self.config.preprocessor_globs.is_empty() {
             return true;
         }
-        !self.config.preprocessor_globs.matched(path, false).is_ignore()
+        !self
+            .config
+            .preprocessor_globs
+            .matched(path, false)
+            .is_ignore()
     }
 
     /// Search the given file path by first asking the preprocessor for the
     /// data to search instead of opening the path directly.
-    fn search_preprocessor(
-        &mut self,
-        path: &Path,
-    ) -> io::Result<SearchResult> {
+    fn search_preprocessor(&mut self, path: &Path) -> io::Result<SearchResult> {
         let bin = self.config.preprocessor.as_ref().unwrap();
         let mut cmd = Command::new(bin);
         cmd.arg(path).stdin(Stdio::from(File::open(path)?));
@@ -266,10 +264,7 @@ impl<W: WriteColor> SearchWorker<W> {
         let mut rdr = self.command_builder.build(&mut cmd).map_err(|err| {
             io::Error::new(
                 io::ErrorKind::Other,
-                format!(
-                    "preprocessor command could not start: '{:?}': {}",
-                    cmd, err,
-                ),
+                format!("preprocessor command could not start: '{:?}': {}", cmd, err,),
             )
         })?;
         let result = self.search_reader(path, &mut rdr).map_err(|err| {
@@ -317,11 +312,7 @@ impl<W: WriteColor> SearchWorker<W> {
     /// Generally speaking, this method should only be used when there is no
     /// other choice. Searching via `search_path` provides more opportunities
     /// for optimizations (such as memory maps).
-    fn search_reader<R: io::Read>(
-        &mut self,
-        path: &Path,
-        rdr: &mut R,
-    ) -> io::Result<SearchResult> {
+    fn search_reader<R: io::Read>(&mut self, path: &Path, rdr: &mut R) -> io::Result<SearchResult> {
         use self::PatternMatcher::*;
 
         let (searcher, printer) = (&mut self.searcher, &mut self.printer);

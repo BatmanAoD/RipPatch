@@ -1,9 +1,8 @@
 /// This module defines the types we use for Patch generation.
-
 use std::io;
 
 use bstr::ByteVec;
-use grep::searcher::{SinkMatch, SinkContext};
+use grep::searcher::{SinkContext, SinkMatch};
 
 /// The patch styles match different possible input types accepted by the
 /// `patch` utiltiy.
@@ -33,7 +32,7 @@ pub struct PatchHunk {
 pub enum PatchLine {
     Unchanged(Vec<u8>),
     // Orig, new
-    Changed(Vec<u8>, Vec<u8>)
+    Changed(Vec<u8>, Vec<u8>),
 }
 
 impl PatchHunk {
@@ -41,15 +40,19 @@ impl PatchHunk {
         if style != PatchStyle::Unified {
             unimplemented!("only unified patch style supported for now");
         }
-        match self.starting_line_number {
-            Some(number) => 
-                write!(
-                    // XXX GNU docs say to exclude ',{count}' if it's one; check if that's actually important
-                    wtr, "@@ -{line},{count} +{line},{count} @@\n",
-                    line=number, count=self.lines.len())?,
-            // XXX change error type
-            None => return Err(io::Error::new(io::ErrorKind::Other, "no line numbers")),
+        let number = self
+            .starting_line_number
+            .expect("logic error: line numbers are not tracked");
+        match self.lines.len() {
+            1 => write!(wtr, "@@ -{line} +{line} @@\n", line = number)?,
+            _ => write!(
+                wtr,
+                "@@ -{line},{count} +{line},{count} @@\n",
+                line = number,
+                count = self.lines.len()
+            )?,
         }
+
         for line in &self.lines {
             line.write(&mut *wtr)?;
         }
@@ -63,7 +66,9 @@ impl PatchHunk {
     pub fn add_match(&mut self, mat: &SinkMatch<'_>, replacement: &[u8]) {
         // XXX validate `unwrap` here - when would a match not have a line
         // number? (Presumably this case would not be supported by this printer)
-        let _ = self.starting_line_number.get_or_insert_with(|| mat.line_number().unwrap());
+        let _ = self
+            .starting_line_number
+            .get_or_insert_with(|| mat.line_number().unwrap());
         // XXX make sure `mat.bytes()` includes full matching line even with `--only-match`
         let orig = mat.bytes().to_vec();
         let mut modified = replacement.to_vec();

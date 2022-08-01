@@ -13,7 +13,9 @@ struct Config {
 
 impl Default for Config {
     fn default() -> Config {
-        Config { strip_dot_prefix: false }
+        Config {
+            strip_dot_prefix: false,
+        }
     }
 }
 
@@ -26,7 +28,9 @@ pub struct SubjectBuilder {
 impl SubjectBuilder {
     /// Return a new subject builder with a default configuration.
     pub fn new() -> SubjectBuilder {
-        SubjectBuilder { config: Config::default() }
+        SubjectBuilder {
+            config: Config::default(),
+        }
     }
 
     /// Create a new subject from a possibly missing directory entry.
@@ -34,10 +38,7 @@ impl SubjectBuilder {
     /// If the directory entry isn't present, then the corresponding error is
     /// logged if messages have been configured. Otherwise, if the subject is
     /// deemed searchable, then it is returned.
-    pub fn build_from_result(
-        &self,
-        result: Result<DirEntry, ignore::Error>,
-    ) -> Option<Subject> {
+    pub fn build_from_result(&self, result: Result<DirEntry, ignore::Error>) -> Option<Subject> {
         match result {
             Ok(dent) => self.build(dent),
             Err(err) => {
@@ -52,8 +53,10 @@ impl SubjectBuilder {
     /// If a subject could not be created or should otherwise not be searched,
     /// then this returns `None` after emitting any relevant log messages.
     pub fn build(&self, dent: DirEntry) -> Option<Subject> {
-        let subj =
-            Subject { dent, strip_dot_prefix: self.config.strip_dot_prefix };
+        let subj = Subject {
+            dent,
+            strip_dot_prefix: self.config.strip_dot_prefix,
+        };
         if let Some(ignore_err) = subj.dent.error() {
             ignore_message!("{}", ignore_err);
         }

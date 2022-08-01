@@ -3,10 +3,10 @@ use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
 use std::time::Instant;
 
-use grep::matcher::{Matcher, Match};
+use grep::matcher::{Match, Matcher};
 use grep::printer::Replacer;
 // util::find_iter_at_in_context};
-use grep::searcher::{Searcher, Sink, SinkContextKind, SinkMatch, SinkContext, SinkFinish};
+use grep::searcher::{Searcher, Sink, SinkContext, SinkContextKind, SinkFinish, SinkMatch};
 
 use crate::patcht::{PatchHunk, PatchStyle};
 use crate::util::find_iter_at_in_context;
@@ -23,7 +23,10 @@ struct Config {
 
 impl Default for Config {
     fn default() -> Config {
-        Config { style: PatchStyle::Unified, replacement: Vec::default(), }
+        Config {
+            style: PatchStyle::Unified,
+            replacement: Vec::default(),
+        }
     }
 }
 
@@ -58,10 +61,7 @@ impl PatchBuilder {
     /// For documentation on the full format, please see the `Capture` trait's
     /// `interpolate` method in the
     /// [grep-printer](https://docs.rs/grep-printer) crate.
-    pub fn replacement(
-        &mut self,
-        replacement: Vec<u8>,
-    ) -> &mut PatchBuilder {
+    pub fn replacement(&mut self, replacement: Vec<u8>) -> &mut PatchBuilder {
         self.config.replacement = replacement;
         self
     }
@@ -81,20 +81,6 @@ impl<W> Patch<W> {
     pub fn get_mut(&mut self) -> &mut W {
         &mut self.wtr
     }
-
-/* XXX see if we need these
-    /// Returns true if and only if this printer has written at least one byte
-    /// to the underlying writer during any of the previous searches.
-    pub fn has_written(&self) -> bool {
-        self.wtr.total_count() > 0
-    }
-
-    /// Consume this printer and return back ownership of the underlying
-    /// writer.
-    pub fn into_inner(self) -> W {
-        self.wtr.into_inner()
-    }
-*/
 }
 
 /// An implementation of `Sink` associated with a matcher and an optional file
@@ -143,17 +129,11 @@ impl<'p, 's, M: Matcher, W: io::Write> PatchSink<'p, 's, M, W> {
         // Implementation taken from `Standard.record_matches`; see comment
         // there about allocation
         let matches = &mut self.patch.matches;
-        find_iter_at_in_context(
-            searcher,
-            &self.matcher,
-            bytes,
-            range.clone(),
-            |m| {
-                let (s, e) = (m.start() - range.start, m.end() - range.start);
-                matches.push(Match::new(s, e));
-                true
-            },
-        )?;
+        find_iter_at_in_context(searcher, &self.matcher, bytes, range.clone(), |m| {
+            let (s, e) = (m.start() - range.start, m.end() - range.start);
+            matches.push(Match::new(s, e));
+            true
+        })?;
         // Don't report empty matches appearing at the end of the bytes.
         if !matches.is_empty()
             && matches.last().unwrap().is_empty()
@@ -187,7 +167,7 @@ impl<'p, 's, M: Matcher, W: io::Write> PatchSink<'p, 's, M, W> {
         if self.begin_printed {
             return Ok(());
         }
-        // XXX need to select header type based on config style
+        // TODO: the header should depend on the patch config style
         write_header(&mut self.patch.wtr, self.path)?;
         self.begin_printed = true;
         Ok(())
@@ -195,24 +175,20 @@ impl<'p, 's, M: Matcher, W: io::Write> PatchSink<'p, 's, M, W> {
 }
 
 fn write_header<W: io::Write>(wtr: &mut W, path: &Path) -> io::Result<()> {
-    // XXX for this, should the 'file2' path be different from 'file1'?
     let path_bytes = path.as_os_str().as_bytes();
     wtr.write(ORIG_PREFIX)?;
     wtr.write(path_bytes)?;
     // The GNU and POSIX documentation both state that diffs include file
     // timestamps, but git doesn't include one with either `diff` or
-    // `format-patch`.
-    // XXX figure out if this actually matters
-    // fs::metadata(self.path)?.modified()?
-    // wtr.write(b", 2002-02-21 23:30:39.942229878 -0800")?;
+    // `format-patch`, and indeed GNU `patch` doesn't seem to need timestamps.
+    // (Haven't checked BSD but I'd be surprised if it's different in this
+    // regard.)
 
     // XXX should the line-endings for patch files match the native line-endings?
-    // Will this be done automatically? (See comment in `json.rs`)
+    // Will this be done automatically by the `BufferWriter`?
     wtr.write(&[b'\n'])?;
     wtr.write(MOD_PREFIX)?;
     wtr.write(path_bytes)?;
-    // XXX see comment above about the timestamps
-    // wtr.write(b", 2002-02-21 23:30:39.942229878 -0800")?;
     wtr.write(&[b'\n'])?;
     Ok(())
 }
@@ -220,20 +196,12 @@ fn write_header<W: io::Write>(wtr: &mut W, path: &Path) -> io::Result<()> {
 impl<'p, 's, M: Matcher, W: io::Write> Sink for PatchSink<'p, 's, M, W> {
     type Error = io::Error;
 
-    fn matched(
-        &mut self,
-        searcher: &Searcher,
-        mat: &SinkMatch<'_>,
-    ) -> Result<bool, io::Error> {
+    fn matched(&mut self, searcher: &Searcher, mat: &SinkMatch<'_>) -> Result<bool, io::Error> {
         self.write_patch_header()?;
 
         self.match_count += 1;
 
-        self.record_matches(
-            searcher,
-            mat.buffer(),
-            mat.bytes_range_in_buffer(),
-        )?;
+        self.record_matches(searcher, mat.buffer(), mat.bytes_range_in_buffer())?;
         self.replace(searcher, mat.buffer(), mat.bytes_range_in_buffer())?;
 
         if searcher.binary_detection().convert_byte().is_some() {
@@ -244,22 +212,22 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for PatchSink<'p, 's, M, W> {
 
         let hunk = self.current_hunk.get_or_insert(PatchHunk::default());
         hunk.add_match(
-            mat, self.replacer.replacement().expect("no replacement occurred").0);
+            mat,
+            self.replacer
+                .replacement()
+                .expect("no replacement occurred")
+                .0,
+        );
 
         Ok(true)
     }
 
-    fn context(
-        &mut self,
-        searcher: &Searcher,
-        ctx: &SinkContext<'_>,
-    ) -> Result<bool, io::Error> {
+    fn context(&mut self, searcher: &Searcher, ctx: &SinkContext<'_>) -> Result<bool, io::Error> {
         self.patch.matches.clear();
         self.replacer.clear();
 
         if ctx.kind() == &SinkContextKind::After {
-            self.after_context_remaining =
-                self.after_context_remaining.saturating_sub(1);
+            self.after_context_remaining = self.after_context_remaining.saturating_sub(1);
         }
         if searcher.binary_detection().convert_byte().is_some() {
             if self.binary_byte_offset.is_some() {
@@ -270,13 +238,10 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for PatchSink<'p, 's, M, W> {
         let hunk = self.current_hunk.get_or_insert(PatchHunk::default());
         hunk.add_context(ctx);
 
-        return Ok(true)
+        return Ok(true);
     }
 
-    fn context_break(
-        &mut self,
-        _: &Searcher,
-    ) -> Result<bool, io::Error> {
+    fn context_break(&mut self, _: &Searcher) -> Result<bool, io::Error> {
         if let Some(previous) = &mut self.current_hunk {
             previous.write(&mut self.patch.wtr, self.patch.config.style)?;
         }
@@ -293,9 +258,7 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for PatchSink<'p, 's, M, W> {
         Ok(true)
     }
 
-
     fn begin(&mut self, _searcher: &Searcher) -> Result<bool, io::Error> {
-        // self.patch.wtr.reset_count(); // XXX only if we need a counter-writer
         self.start_time = Instant::now();
         self.match_count = 0;
         self.after_context_remaining = 0;
@@ -303,11 +266,7 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for PatchSink<'p, 's, M, W> {
         Ok(true)
     }
 
-    fn finish(
-        &mut self,
-        _searcher: &Searcher,
-        finish: &SinkFinish,
-    ) -> Result<(), io::Error> {
+    fn finish(&mut self, _searcher: &Searcher, finish: &SinkFinish) -> Result<(), io::Error> {
         if !self.begin_printed {
             return Ok(());
         }
@@ -349,6 +308,4 @@ impl<W: io::Write> Patch<W> {
             begin_printed: false,
         }
     }
-
-
 }

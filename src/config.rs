@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use bstr::{io::BufReadExt, ByteSlice};
 use log;
 
-use crate::{Result, message};
+use crate::{message, Result};
 
 /// Return a sequence of arguments derived from ripgrep rc configuration files.
 pub fn args() -> Vec<OsString> {
@@ -56,9 +56,7 @@ pub fn args() -> Vec<OsString> {
 /// If the file could not be read, then an error is returned. If there was
 /// a problem parsing one or more lines in the file, then errors are returned
 /// for each line in addition to successfully parsed arguments.
-fn parse<P: AsRef<Path>>(
-    path: P,
-) -> Result<(Vec<OsString>, Vec<Box<dyn Error>>)> {
+fn parse<P: AsRef<Path>>(path: P) -> Result<(Vec<OsString>, Vec<Box<dyn Error>>)> {
     let path = path.as_ref();
     match File::open(&path) {
         Ok(file) => parse_reader(file),
@@ -77,9 +75,7 @@ fn parse<P: AsRef<Path>>(
 /// If the reader could not be read, then an error is returned. If there was a
 /// problem parsing one or more lines, then errors are returned for each line
 /// in addition to successfully parsed arguments.
-fn parse_reader<R: io::Read>(
-    rdr: R,
-) -> Result<(Vec<OsString>, Vec<Box<dyn Error>>)> {
+fn parse_reader<R: io::Read>(rdr: R) -> Result<(Vec<OsString>, Vec<Box<dyn Error>>)> {
     let bufrdr = io::BufReader::new(rdr);
     let (mut args, mut errs) = (vec![], vec![]);
     let mut line_number = 0;
@@ -124,8 +120,7 @@ mod tests {
         )
         .unwrap();
         assert!(errs.is_empty());
-        let args: Vec<String> =
-            args.into_iter().map(|s| s.into_string().unwrap()).collect();
+        let args: Vec<String> = args.into_iter().map(|s| s.into_string().unwrap()).collect();
         assert_eq!(args, vec!["--context=0", "--smart-case", "-u", "--foo",]);
     }
 
