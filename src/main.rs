@@ -88,12 +88,11 @@ fn search_parallel(args: Args) -> Result<bool> {
 }
 
 fn eprint_nothing_searched() {
-    // XXX this error message is still useful... and basically correct, b/c the
-    // guts of RipPatch *are* ripgrep. It still feels weird ot copy it
-    // wholesale.
+    // The application name is not specified, because the
+    // guts of RipPatch *are* ripgrep.
     err_message!(
-        "No files were searched, which means ripgrep probably \
-         applied a filter you didn't expect.\n\
+        "No files were searched, which means an unexpected filter
+         may have been applied.\n\
          Running with --debug will show why files are being skipped."
     );
 }
