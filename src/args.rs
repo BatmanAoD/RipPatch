@@ -20,7 +20,7 @@ use grep::regex::{
 };
 use grep::searcher::{BinaryDetection, Encoding, MmapChoice, Searcher, SearcherBuilder};
 use ignore::overrides::{Override, OverrideBuilder};
-use ignore::types::{FileTypeDef, Types, TypesBuilder};
+use ignore::types::{Types, TypesBuilder};
 use ignore::{WalkBuilder, WalkParallel};
 use log;
 use num_cpus;
@@ -62,10 +62,6 @@ pub struct Args(Arc<ArgsImp>);
 struct ArgsImp {
     /// Mid-to-low level routines for extracting CLI arguments.
     matches: ArgMatches,
-    /// The patterns provided at the command line and/or via the -f/--file
-    /// flag. This may be empty.
-    // XXX why is this not used?
-    patterns: Vec<String>,
     /// A matcher built from the patterns.
     ///
     /// It's important that this is only built once, since building this goes
@@ -129,12 +125,6 @@ impl Args {
     /// Return direct access to command line arguments.
     fn matches(&self) -> &ArgMatches {
         &self.0.matches
-    }
-
-    /// Return the patterns found in the command line arguments. This includes
-    /// patterns read via the -f/--file flags.
-    fn patterns(&self) -> &[String] {
-        &self.0.patterns
     }
 
     /// Return the matcher builder from the patterns.
@@ -286,7 +276,6 @@ impl ArgMatches {
         };
         Ok(Args(Arc::new(ArgsImp {
             matches: self,
-            patterns,
             matcher,
             paths,
             using_default_path,
@@ -559,13 +548,6 @@ impl ArgMatches {
         } else {
             BinaryDetection::convert(b'\x00')
         }
-    }
-
-    // XXX why is this not called?
-    /// Returns true if the command line configuration implies that a match
-    /// can never be shown.
-    fn can_never_match(&self, patterns: &[String]) -> bool {
-        patterns.is_empty()
     }
 
     /// Returns true if and only if case should be ignored.
